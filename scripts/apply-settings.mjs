@@ -10,6 +10,8 @@
 //    - extraKnownMarketplaces: entries from the repo file replace same-named entries.
 //    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
 //    - Every other key in settings.json is left as is. A timestamped backup is written first.
+// 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
+//    (other content untouched, backup first).
 //
 // Usage: node scripts/apply-settings.mjs [--dry-run | --check] [--hook] [--marketplaces-only]
 //   --dry-run            print every step, change nothing
@@ -74,6 +76,7 @@ function summary() {
     [count(/^(remove marketplace|uninstall)/), "정리"],
     [count(/^marketplace /), "마켓플레이스 선언"],
     [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
+    [count(/^CLAUDE\.md /), "답변 지침"],
   ]
     .filter(([n]) => n)
     .map(([n, label]) => `${label} ${n}건`)
@@ -154,6 +157,35 @@ if (!MARKETS_ONLY) {
   }
 }
 diffs.push(...report);
+
+// ---- 3. CLAUDE.md instruction block ---------------------------------------
+// settings/CLAUDE.kibeen.md is kept as a managed block in the user's CLAUDE.md;
+// everything outside the markers is left untouched. No repo file -> block removed.
+const memoSrc = path.join(ROOT, "settings", "CLAUDE.kibeen.md");
+const memoFile = path.join(dir, "CLAUDE.md");
+const BEGIN = "<!-- BEGIN kibeen-skills: managed by apply-settings.mjs, edit settings/CLAUDE.kibeen.md in the repo -->";
+const END = "<!-- END kibeen-skills -->";
+const memoNow = fs.existsSync(memoFile) ? fs.readFileSync(memoFile, "utf8").replace(/\r\n/g, "\n") : "";
+const blockRe = /<!-- BEGIN kibeen-skills[^\n]*-->\n[\s\S]*?<!-- END kibeen-skills -->\n?/;
+const wanted = fs.existsSync(memoSrc) ? `${BEGIN}\n${fs.readFileSync(memoSrc, "utf8").replace(/\r\n/g, "\n").trim()}\n${END}\n` : "";
+let memoNext = blockRe.test(memoNow)
+  ? memoNow.replace(blockRe, wanted)
+  : wanted
+    ? memoNow + (memoNow && !memoNow.endsWith("\n\n") ? (memoNow.endsWith("\n") ? "\n" : "\n\n") : "") + wanted
+    : memoNow;
+if (memoNext !== memoNow) {
+  const what = !wanted ? "removed" : blockRe.test(memoNow) ? "updated" : "added";
+  diffs.push(`CLAUDE.md instructions: ${what}`);
+  if (!DRY) {
+    if (fs.existsSync(memoFile)) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      fs.copyFileSync(memoFile, `${memoFile}.bak-${stamp}`);
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(memoFile, memoNext);
+    log(`CLAUDE.md instructions ${what}: ${memoFile}`);
+  } else if (!CHECK) log(`would ${what === "removed" ? "remove" : what === "added" ? "add" : "update"} the kibeen-skills block in ${memoFile}`);
+}
 
 if (CHECK) {
   if (HOOK) {

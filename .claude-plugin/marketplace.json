@@ -40,7 +40,6 @@
   ],
   "allowCrossMarketplaceDependenciesOn": [
     "claude-plugins-official",
-    "taste-skill",
-    "caveman"
+    "taste-skill"
   ]
 }

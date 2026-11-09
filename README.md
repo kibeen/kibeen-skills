@@ -30,6 +30,11 @@ claude plugin uninstall kibeen-core@kibeen-skills --prune   # 지울 때: 함께
   `node ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply-settings.mjs --dry-run`.
 - 제거 목록(`retired`)에 있는 도구는 그 머신에서 직접 다시 설치해도 다음 동기화 때 다시 제거된다.
 
+## 답변 지침 (모든 머신에 자동 적용)
+`settings/CLAUDE.kibeen.md` 의 지침을 `apply-settings.mjs` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+(`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
+`kibeen-core` 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
+
 ## 새 머신 설정 (1회)
 ```bash
 gh auth login                                   # private repo 접근
@@ -71,7 +76,6 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | 플러그인 ID | 내용 | 원본 |
 |---|---|---|
 | `taste-skill@taste-skill` | 프런트엔드 디자인 스킬 (`design-taste-frontend`). 회사·마케팅 웹사이트 수준의 규칙과 실제 브라우저 확인 단계가 있다. 매 세션 약 240 토큰, 사용 시 약 7,300 토큰 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) |
-| `caveman@caveman` | 응답 압축 모드. 훅 4개로 항상 켜짐 (Node 필요). 끄려면 `claude plugin disable caveman@caveman` | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) |
 
 ## 이 마켓플레이스의 플러그인
 ```
@@ -96,7 +100,7 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`.
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체).
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. 경로가 깊은 레포는

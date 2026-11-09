@@ -8,7 +8,6 @@
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
     "hyperframes@claude-plugins-official",
-    "taste-skill@taste-skill",
-    "caveman@caveman"
+    "taste-skill@taste-skill"
   ]
 }

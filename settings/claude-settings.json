@@ -27,21 +27,13 @@
         "repo": "Leonxlnx/taste-skill"
       },
       "autoUpdate": true
-    },
-    "caveman": {
-      "source": {
-        "source": "github",
-        "repo": "JuliusBrussee/caveman"
-      },
-      "autoUpdate": true
     }
   },
   "enabledPlugins": {
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "hyperframes@claude-plugins-official": true,
-    "taste-skill@taste-skill": true,
-    "caveman@caveman": true
+    "taste-skill@taste-skill": true
   },
   "retired": {
     "//": "apply-settings.mjs removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",
@@ -53,7 +45,8 @@
       "thedotmack",
       "perplexity-mcp-server",
       "higgsfield",
-      "repomix"
+      "repomix",
+      "caveman"
     ],
     "plugins": [
       "frontend-design@claude-plugins-official",
