@@ -66,20 +66,12 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 - `superpowers` 는 SessionStart 훅이 있다.
 
 ## 원본 마켓플레이스 플러그인
-기본으로 켬 (`enabledPlugins`):
+모두 기본으로 켬 (`enabledPlugins`):
 
 | 플러그인 ID | 내용 | 원본 |
 |---|---|---|
 | `taste-skill@taste-skill` | 프런트엔드 디자인 스킬 (`design-taste-frontend`). 회사·마케팅 웹사이트 수준의 규칙과 실제 브라우저 확인 단계가 있다. 매 세션 약 240 토큰, 사용 시 약 7,300 토큰 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) |
-
-선언만 하고 필요할 때 설치:
-```
-claude plugin install <플러그인 ID>
-```
-
-| 플러그인 ID | 내용 | 원본 |
-|---|---|---|
-| `caveman@caveman` | 응답 압축 모드. 훅 4개로 항상 켜짐 (Node 필요). 필요할 때만 켜고 평소엔 `claude plugin disable caveman@caveman` | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) |
+| `caveman@caveman` | 응답 압축 모드. 훅 4개로 항상 켜짐 (Node 필요). 끄려면 `claude plugin disable caveman@caveman` | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) |
 
 ## 이 마켓플레이스의 플러그인
 ```
