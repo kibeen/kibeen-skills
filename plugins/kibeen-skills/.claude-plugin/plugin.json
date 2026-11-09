@@ -7,7 +7,6 @@
   "dependencies": [
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
-    "hyperframes@claude-plugins-official",
     "taste-skill@taste-skill",
     "scientific-writing@kibeen-skills",
     "citation-management@kibeen-skills",

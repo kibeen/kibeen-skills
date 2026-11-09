@@ -69,7 +69,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
   - 릴리스 직후 커밋을 바로 받지 않으려면 저장소 변수 `MIN_AGE_DAYS` 를 설정한다(예: 3 → 3일 이상 지난 커밋만 채택).
 
 ## 공식 마켓플레이스 플러그인 (`enabledPlugins` 로 켬)
-`playwright`, `superpowers`, `hyperframes` (모두 `@claude-plugins-official`)
+`playwright`, `superpowers` (모두 `@claude-plugins-official`)
+
+기본에서 뺀 선택 도구: `hyperframes@claude-plugins-official`(HTML 영상 제작, 매 세션 약 3,900 토큰, 슬라이드 요청도 가로챈다). 영상 프로젝트에서만 `claude plugin install hyperframes@claude-plugins-official --scope project`.
 
 - `superpowers` 는 SessionStart 훅이 있다.
 
