@@ -1,5 +1,5 @@
 {
-  "name": "kibeen-core",
+  "name": "kibeen-skills",
   "description": "kibeen 기본 도구 묶음. 설치하면 dependencies 의 플러그인이 함께 설치된다.",
   "author": {
     "name": "Jung Kibeen"

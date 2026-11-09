@@ -12,18 +12,18 @@ kibeen 개인 Claude Code 환경 설정 (private). 도구는 출처에 따라 �
 `kibeen-skills` 에는 원본으로 해결할 수 없는 것(큰 묶음에서 일부만 고르기, 마켓플레이스가 없는 레포)만 둔다.
 역할이 겹치는 도구는 분야마다 하나만 둔다: 개발 방법론 `superpowers`, 프런트엔드 디자인 `taste-skill`, 브라우저 제어 `playwright`.
 
-## 기본 도구 한 번에 설치 (`kibeen-core`)
-`kibeen-core` 는 내용 없이 `dependencies` 만 가진 묶음 플러그인이다. 설치하면 기본 도구가 함께 설치된다.
+## 기본 도구 한 번에 설치 (`kibeen-skills` 플러그인)
+`kibeen-skills` 플러그인 는 내용 없이 `dependencies` 만 가진 묶음 플러그인이다. 설치하면 기본 도구가 함께 설치된다.
 ```
 claude plugin marketplace add kibeen/kibeen-skills
 claude plugin marketplace add Leonxlnx/taste-skill        # 다른 마켓플레이스 의존성은 그 마켓플레이스가 등록돼 있어야 받는다
-claude plugin install kibeen-core@kibeen-skills
-claude plugin uninstall kibeen-core@kibeen-skills --prune   # 지울 때: 함께 설치된 도구까지 정리
+claude plugin install kibeen-skills@kibeen-skills
+claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함께 설치된 도구까지 정리
 ```
-- 의존성 목록은 `plugins/kibeen-core/.claude-plugin/plugin.json`. `settings/claude-settings.json` 의 `enabledPlugins` 와 같게 유지한다.
+- 의존성 목록은 `plugins/kibeen-skills/.claude-plugin/plugin.json`. `settings/claude-settings.json` 의 `enabledPlugins` 와 같게 유지한다.
 - 다른 마켓플레이스 의존성은 `.claude-plugin/marketplace.json` 의 `allowCrossMarketplaceDependenciesOn` 에 그 마켓플레이스가 있어야 한다.
 - 이 방식은 설치만 한다. 다른 플러그인을 지우거나 끄는 것은 아래 `apply-settings.mjs` 로 한다.
-- `kibeen-core` 의 SessionStart 훅이 이 레포에 새 커밋이 있을 때, 아니면 하루 한 번 이 머신을 설정에 맞춘다.
+- `kibeen-skills` 플러그인 의 SessionStart 훅이 이 레포에 새 커밋이 있을 때, 아니면 하루 한 번 이 머신을 설정에 맞춘다.
   설치·켜기·제거를 모두 자동 적용하고(설정 백업 생성), 무엇을 했는지 한 줄 알림을 띄운다. 모델 컨텍스트에는 넣지 않는다.
   새로 켠 플러그인은 다음 세션부터 쓸 수 있다.
 - 자동 적용 대신 알림만 받으려면 환경변수 `KIBEEN_AUTO_APPLY=0`. 수동 확인은
@@ -33,7 +33,7 @@ claude plugin uninstall kibeen-core@kibeen-skills --prune   # 지울 때: 함께
 ## 답변 지침 (모든 머신에 자동 적용)
 `settings/CLAUDE.kibeen.md` 의 지침을 `apply-settings.mjs` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
-`kibeen-core` 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
+`kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
 
 ## 새 머신 설정 (1회)
 ```bash

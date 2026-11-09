@@ -73,6 +73,7 @@ let backupPath = "";
 function summary() {
   const count = re => diffs.filter(d => re.test(d)).length;
   return [
+    [count(/^install /), "이름 변경 설치"],
     [count(/^(remove marketplace|uninstall)/), "정리"],
     [count(/^marketplace /), "마켓플레이스 선언"],
     [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
@@ -102,6 +103,12 @@ if (!installed || !known) {
   const goneMarkets = new Set(plan.map(p => p.args[3]));
   const inCatalog = new Set(catalog.plugins.map(p => `${p.name}@${catalog.name}`));
   const retiredPlugins = new Set(retired.plugins || []);
+  const installedIds = new Set(installed.map(p => p.id));
+  // Renamed plugins: install the new id before the old one is removed below.
+  for (const [oldId, newId] of Object.entries(fragment.renamed || {})) {
+    if (installedIds.has(oldId) && !installedIds.has(newId))
+      plan.push({ what: `install ${newId} (renamed from ${oldId})`, args: ["plugin", "install", newId] });
+  }
   for (const { id } of installed) {
     if (goneMarkets.has(id.split("@")[1])) continue; // removed with its marketplace
     if (retiredPlugins.has(id)) plan.push({ what: `uninstall ${id} (retired)`, args: ["plugin", "uninstall", id] });

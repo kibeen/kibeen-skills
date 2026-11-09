@@ -8,8 +8,8 @@
   },
   "plugins": [
     {
-      "name": "kibeen-core",
-      "source": "./plugins/kibeen-core",
+      "name": "kibeen-skills",
+      "source": "./plugins/kibeen-skills",
       "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치)"
     },
     {

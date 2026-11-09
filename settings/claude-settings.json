@@ -59,5 +59,8 @@
       "firecrawl@claude-plugins-official",
       "repomix-mcp@repomix"
     ]
+  },
+  "renamed": {
+    "kibeen-core@kibeen-skills": "kibeen-skills@kibeen-skills"
   }
 }

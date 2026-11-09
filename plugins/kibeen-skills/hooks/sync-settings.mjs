@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
 const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
-const dataDir = process.env.CLAUDE_PLUGIN_DATA || path.join(configDir, "plugins", "data", "kibeen-core");
+const dataDir = process.env.CLAUDE_PLUGIN_DATA || path.join(configDir, "plugins", "data", "kibeen-skills");
 const stampFile = path.join(dataDir, "last-sync.json");
 const autoApply = process.env.KIBEEN_AUTO_APPLY !== "0";
 
