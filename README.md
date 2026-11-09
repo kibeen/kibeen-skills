@@ -45,6 +45,25 @@ kibeen 개인 Claude Code 플러그인 마켓플레이스 (private).
 새 플러그인은 `plugins/<이름>/` 에 두고 `.claude-plugin/marketplace.json` 의 `plugins` 에 추가한다.
 
 
+## k-skill (한국 생활·업무 스킬)
+[NomaDamas/k-skill](https://github.com/NomaDamas/k-skill) (MIT) 에서 고른 55개 스킬을 각각 별도 플러그인으로 넣었다.
+업스트림 `plugin.json` 이 90여 개 스킬 전체를 선언해 일부만 묶을 수 없기 때문에, 스킬 폴더 하나씩을 `git-subdir` 로 가리킨다 (커밋 `9766d20`).
+
+`railway-timetable`, `express-bus-booking`, `intercity-bus-booking`, `flight-ticket-search`, `myrealtrip-search`, `seoul-subway-arrival`, `korean-transit-route`, `kakao-map`, `parking-lot-search`, `ev-charger-nearby`, `real-estate-search`, `housing-official-price`, `gongsijiga-search`, `court-auction-notice-search`, `korean-law-search`, `iros-registry-automation`, `korean-stock-search`, `k-dart`, `company-analysis`, `toss-investment`, `daishin-report-search`, `kosis-stats`, `bok-ecos-stats`, `government-bond-analysis`, `multi-asset-morning-briefing`, `market-event-impact`, `emergency-room-beds`, `kpic-drug-search`, `mfds-food-safety`, `coupang-product-search`, `danawa-price-search`, `daiso-product-search`, `market-kurly-search`, `olive-young-search`, `ohou-today-deal`, `daangn-used-goods-search`, `delivery-tracking`, `kakao-bar-nearby`, `korean-cinema-search`, `ticket-availability`, `kopis-performance-search`, `library-book-search`, `naver-news-search`, `hankookilbo-news`, `naver-blog-research`, `geeknews-search`, `korean-humanizer`, `korea-weather`, `seoul-weather-risk`, `fine-dust-location`, `korean-holiday-calendar`, `zipcode-search`, `public-restroom-nearby`, `hwp`, `rhwp-edit`
+
+전부 설치 (bash):
+```bash
+for p in railway-timetable express-bus-booking intercity-bus-booking flight-ticket-search myrealtrip-search seoul-subway-arrival korean-transit-route kakao-map parking-lot-search ev-charger-nearby real-estate-search housing-official-price gongsijiga-search court-auction-notice-search korean-law-search iros-registry-automation korean-stock-search k-dart company-analysis toss-investment daishin-report-search kosis-stats bok-ecos-stats government-bond-analysis multi-asset-morning-briefing market-event-impact emergency-room-beds kpic-drug-search mfds-food-safety coupang-product-search danawa-price-search daiso-product-search market-kurly-search olive-young-search ohou-today-deal daangn-used-goods-search delivery-tracking kakao-bar-nearby korean-cinema-search ticket-availability kopis-performance-search library-book-search naver-news-search hankookilbo-news naver-blog-research geeknews-search korean-humanizer korea-weather seoul-weather-risk fine-dust-location korean-holiday-calendar zipcode-search public-restroom-nearby hwp rhwp-edit; do claude plugin install "$p@kibeen-skills"; done
+```
+
+주의:
+- 각 SKILL.md 는 껍데기이고, 실행 시 `npx -y @nomadamas/k-skill@0 instruct <스킬>` 로 **npm 패키지에서 지침을 받아온다**.
+  git 커밋은 고정돼 있어도 실제 동작은 npm `@0` 범위 최신 버전(현재 0.11.2)을 따른다. Node.js 18+ 필요.
+- 일부 스킬(kakao-map, parking-lot-search, real-estate-search, korean-law-search, korean-stock-search, mfds-food-safety,
+  coupang-product-search, library-book-search, naver-news-search, fine-dust-location, korean-holiday-calendar)은
+  운영자 호스팅 프록시 `https://k-skill-proxy.nomadamas.org` 로 질의를 보낸다. 직접 운영하려면 `KSKILL_PROXY_BASE_URL` 을 지정한다.
+- 인증이 필요한 스킬의 초기 설정은 업스트림 `k-skill-setup` 스킬이 담당한다(여기에는 넣지 않았다).
+
 ## Windows 에서 설치할 때
 `gsd-core`, `hyperframes` 처럼 파일 경로가 깊은 업스트림은 Windows 경로 길이 제한(260자)에 걸려
 `Filename too long` 으로 설치가 실패할 수 있다. 설치 전에 한 번 실행한다.
