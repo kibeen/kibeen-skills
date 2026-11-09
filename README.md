@@ -14,6 +14,7 @@ kibeen 개인 Claude Code 환경 설정 (private). 도구는 출처에 따라 �
 ## 새 머신 설정 (1회)
 ```bash
 gh auth login                                   # private repo 접근
+gh auth setup-git                               # 필수: 백그라운드 자동 업데이트가 이 인증 도우미로 private repo 를 받는다
 git clone https://github.com/kibeen/kibeen-skills.git ~/kibeen-skills
 node ~/kibeen-skills/scripts/apply-settings.mjs --dry-run   # 바뀔 내용 확인
 node ~/kibeen-skills/scripts/apply-settings.mjs             # ~/.claude/settings.json 에 병합 (백업 생성)
