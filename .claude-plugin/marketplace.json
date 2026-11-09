@@ -13,17 +13,6 @@
       "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치)"
     },
     {
-      "name": "superpowers-lab",
-      "source": {
-        "source": "github",
-        "repo": "obra/superpowers-lab",
-        "sha": "51111f74f24058117752d9aa917cb19859f8ec86"
-      },
-      "description": "superpowers 실험 스킬 4종 (tmux 대화형 명령, mcp-cli, 중복 함수 탐지, windows-vm). 업스트림: obra/superpowers-lab",
-      "license": "MIT",
-      "homepage": "https://github.com/obra/superpowers-lab"
-    },
-    {
       "name": "content-research-writer",
       "source": {
         "source": "github",
