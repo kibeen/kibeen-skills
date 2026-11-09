@@ -8,11 +8,7 @@
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
     "hyperframes@claude-plugins-official",
-    "canva@claude-plugins-official",
     "firecrawl@claude-plugins-official",
-    "notion@claude-plugins-official",
-    "supabase@claude-plugins-official",
-    "vercel@claude-plugins-official",
     "taste-skill@taste-skill"
   ]
 }

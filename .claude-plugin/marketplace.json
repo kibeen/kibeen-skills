@@ -54,18 +54,6 @@
       "homepage": "https://github.com/obra/superpowers-lab"
     },
     {
-      "name": "skill-seekers",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/yusufkaraaslan/Skill_Seekers.git",
-        "path": "distribution/claude-plugin",
-        "sha": "5b5d8dfca263fa76e6daae9f292890b311ef36aa"
-      },
-      "description": "문서 사이트·GitHub·PDF 등을 스킬로 변환 (skill-builder 스킬, 명령 3종, MCP). pip install \"skill-seekers[mcp]\" 필요. 업스트림: yusufkaraaslan/Skill_Seekers",
-      "license": "MIT",
-      "homepage": "https://github.com/yusufkaraaslan/Skill_Seekers"
-    },
-    {
       "name": "canvas-design",
       "source": {
         "source": "git-subdir",

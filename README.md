@@ -61,10 +61,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
   - 릴리스 직후 커밋을 바로 받지 않으려면 저장소 변수 `MIN_AGE_DAYS` 를 설정한다(예: 3 → 3일 이상 지난 커밋만 채택).
 
 ## 공식 마켓플레이스 플러그인 (`enabledPlugins` 로 켬)
-`playwright`, `superpowers`, `hyperframes`, `canva`, `firecrawl`, `notion`, `supabase`, `vercel` (모두 `@claude-plugins-official`)
+`playwright`, `superpowers`, `hyperframes`, `firecrawl` (모두 `@claude-plugins-official`)
 
-- `canva`, `notion`, `supabase`, `vercel` 은 처음 쓸 때 각 계정 로그인, `firecrawl` 은 API 키가 필요하다.
-- `vercel` 은 SessionStart·PostToolUse·SessionEnd 훅이 있고 스킬이 37개다(매 세션 약 2,900 토큰). `superpowers` 는 SessionStart 훅이 있다.
+- `firecrawl` 은 API 키가 필요하다. `superpowers` 는 SessionStart 훅이 있다.
 
 ## 원본 마켓플레이스 플러그인
 기본으로 켬 (`enabledPlugins`):
@@ -86,7 +85,6 @@ claude plugin install <플러그인 ID>
 | `repomix-mcp@repomix` | Repomix MCP 서버 | [yamadashy/repomix](https://github.com/yamadashy/repomix) |
 | `repomix-commands@repomix` | `/pack-local`, `/pack-remote` 명령 | 위와 같음 |
 | `repomix-explorer@repomix` | Repomix 기반 레포 분석 에이전트와 명령 | 위와 같음 |
-| `claude-mem@thedotmack` | 세션 간 영구 기억. 도구 사용을 기록하는 훅 9종과 로컬 worker, 익명 사용 통계 기본 켜짐(`npx claude-mem telemetry disable`). Claude Code 기본 메모리와 역할이 겹친다 | [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem) |
 
 ## 이 마켓플레이스의 플러그인
 ```
@@ -99,7 +97,6 @@ claude plugin install <이름>@kibeen-skills
 | `canvas-design` | 포스터·아트워크 시각 디자인 스킬 | 위와 같음 | [anthropics/skills](https://github.com/anthropics/skills) `skills/canvas-design` |
 | `algorithmic-art` | p5.js 제너러티브 아트 스킬 | 위와 같음 | [anthropics/skills](https://github.com/anthropics/skills) `skills/algorithmic-art` |
 | `superpowers-lab` | superpowers 실험 스킬 4종 | 원본에 마켓플레이스 없음 | [obra/superpowers-lab](https://github.com/obra/superpowers-lab) |
-| `skill-seekers` | 문서·레포·PDF 를 스킬로 변환 (skill-builder + 명령 3종 + MCP). `pip install "skill-seekers[mcp]"` 필요 | 원본에 Claude 마켓플레이스 없음 | [yusufkaraaslan/Skill_Seekers](https://github.com/yusufkaraaslan/Skill_Seekers) `distribution/claude-plugin` |
 | `find-skills` | 설치할 만한 스킬을 찾아 주는 스킬 | 원본에 마켓플레이스 없음 | [vercel-labs/skills](https://github.com/vercel-labs/skills) |
 | `content-research-writer` | 리서치·인용·개요 피드백 글쓰기 스킬. 라이선스 표기 없음 | 원본에 마켓플레이스 없음 | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) |
 | `tapestry` | 생산성 스킬 7종 (learn-this, ship-learn-next, youtube-transcript 등) | 원본에 마켓플레이스 없음 | [michalparkola/tapestry-skills](https://github.com/michalparkola/tapestry-skills) |
@@ -117,8 +114,10 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`.
+
 ## Windows
-원본 마켓플레이스는 레포 전체를 받는다. `claude-mem`, `repomix` 처럼 경로가 깊은 레포는
+원본 마켓플레이스는 레포 전체를 받는다. `repomix` 처럼 경로가 깊은 레포는
 홈 경로가 길면 Windows 경로 길이 제한(260자)에 걸려 `Filename too long` 으로 실패할 수 있다. 먼저 한 번 실행한다.
 ```
 git config --global core.longpaths true

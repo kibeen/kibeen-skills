@@ -21,13 +21,6 @@
       },
       "autoUpdate": true
     },
-    "thedotmack": {
-      "source": {
-        "source": "github",
-        "repo": "thedotmack/claude-mem"
-      },
-      "autoUpdate": true
-    },
     "perplexity-mcp-server": {
       "source": {
         "source": "github",
@@ -68,11 +61,7 @@
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "hyperframes@claude-plugins-official": true,
-    "canva@claude-plugins-official": true,
     "firecrawl@claude-plugins-official": true,
-    "notion@claude-plugins-official": true,
-    "supabase@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true,
     "taste-skill@taste-skill": true
   },
   "retired": {
@@ -81,12 +70,17 @@
       "agent-browser",
       "gsd-core",
       "ui-ux-pro-max-skill",
-      "impeccable"
+      "impeccable",
+      "thedotmack"
     ],
     "plugins": [
       "frontend-design@claude-plugins-official",
       "chrome-devtools-mcp@claude-plugins-official",
-      "frontend-design@anthropic-plugin-directory"
+      "frontend-design@anthropic-plugin-directory",
+      "canva@claude-plugins-official",
+      "supabase@claude-plugins-official",
+      "vercel@claude-plugins-official",
+      "notion@claude-plugins-official"
     ]
   }
 }
