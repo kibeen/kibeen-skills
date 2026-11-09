@@ -35,13 +35,6 @@
       },
       "autoUpdate": true
     },
-    "higgsfield": {
-      "source": {
-        "source": "github",
-        "repo": "higgsfield-ai/skills"
-      },
-      "autoUpdate": true
-    },
     "repomix": {
       "source": {
         "source": "github",
@@ -64,7 +57,8 @@
       "ui-ux-pro-max-skill",
       "impeccable",
       "thedotmack",
-      "perplexity-mcp-server"
+      "perplexity-mcp-server",
+      "higgsfield"
     ],
     "plugins": [
       "frontend-design@claude-plugins-official",
