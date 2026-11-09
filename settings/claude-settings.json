@@ -72,7 +72,8 @@
     "firecrawl@claude-plugins-official": true,
     "notion@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": true,
+    "taste-skill@taste-skill": true
   },
   "retired": {
     "//": "apply-settings.mjs removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",
