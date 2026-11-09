@@ -175,7 +175,7 @@
         "source": "git-subdir",
         "url": "https://github.com/NomaDamas/k-skill.git",
         "path": "railway-timetable",
-        "sha": "98b7ee80ba38d17a8059b83630073be51f2d7002"
+        "sha": "b1d9915a403231d892fc71553a01723674fa7dfe"
       },
       "description": "[k-skill] Read-only Korail integrated railway timetable lookup covering KTX-family trains. No reservation, payment, cancellation, or seat holding.",
       "license": "MIT",
