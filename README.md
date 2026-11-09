@@ -78,7 +78,15 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `taste-skill@taste-skill` | 프런트엔드 디자인 스킬 (`design-taste-frontend`). 회사·마케팅 웹사이트 수준의 규칙과 실제 브라우저 확인 단계가 있다. 매 세션 약 240 토큰, 사용 시 약 7,300 토큰 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) |
 
 ## 이 마켓플레이스의 플러그인
-지금은 `kibeen-skills` 플러그인(묶음 설치 + 동기화 훅) 하나뿐이다. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
+지금은 `kibeen-skills` 플러그인 하나뿐이다. 들어 있는 것:
+
+| 구성 | 종류 | 하는 일 |
+|---|---|---|
+| `pr-review-loop` | 스킬 | 구현 뒤 오래 걸리는 검증 전에: draft PR → 리뷰 서브에이전트 리뷰·반영(Approve 까지, 최대 3회) → CI 통과까지 수정 → PoC 평가 결과 코멘트 → 사용자가 폐기 판정하면 PR 닫고 브랜치 삭제 |
+| `pr-reviewer` | 서브에이전트 | `pr-review-loop` 의 독립 리뷰어. 코드 결함과 PoC 평가 계획을 보고 PR 코멘트로 VERDICT 를 남긴다 |
+| 동기화 훅 | SessionStart 훅 | 이 머신을 `settings/` 에 맞춘다(설치·제거·답변 지침) |
+
+매 세션 비용 약 100 토큰. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
 `.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
