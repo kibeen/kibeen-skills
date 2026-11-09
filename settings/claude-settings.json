@@ -35,13 +35,6 @@
       },
       "autoUpdate": true
     },
-    "agent-browser": {
-      "source": {
-        "source": "github",
-        "repo": "vercel-labs/agent-browser"
-      },
-      "autoUpdate": true
-    },
     "taste-skill": {
       "source": {
         "source": "github",
@@ -49,31 +42,10 @@
       },
       "autoUpdate": true
     },
-    "gsd-core": {
-      "source": {
-        "source": "github",
-        "repo": "open-gsd/gsd-core"
-      },
-      "autoUpdate": true
-    },
     "caveman": {
       "source": {
         "source": "github",
         "repo": "JuliusBrussee/caveman"
-      },
-      "autoUpdate": true
-    },
-    "ui-ux-pro-max-skill": {
-      "source": {
-        "source": "github",
-        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
-      },
-      "autoUpdate": true
-    },
-    "impeccable": {
-      "source": {
-        "source": "github",
-        "repo": "pbakaus/impeccable"
       },
       "autoUpdate": true
     },
@@ -96,12 +68,24 @@
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "hyperframes@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
     "canva@claude-plugins-official": true,
-    "chrome-devtools-mcp@claude-plugins-official": true,
     "firecrawl@claude-plugins-official": true,
     "notion@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "vercel@claude-plugins-official": true
+  },
+  "retired": {
+    "//": "apply-settings.mjs removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",
+    "marketplaces": [
+      "agent-browser",
+      "gsd-core",
+      "ui-ux-pro-max-skill",
+      "impeccable"
+    ],
+    "plugins": [
+      "frontend-design@claude-plugins-official",
+      "chrome-devtools-mcp@claude-plugins-official",
+      "frontend-design@anthropic-plugin-directory"
+    ]
   }
 }
