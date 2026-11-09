@@ -1,28 +1,86 @@
 {
   "name": "kibeen-skills",
-  "owner": { "name": "Jung Kibeen" },
+  "owner": {
+    "name": "Jung Kibeen"
+  },
   "metadata": {
     "description": "kibeen 개인 Claude Code 스킬·에이전트 마켓플레이스"
   },
   "plugins": [
     {
-      "name": "autorag",
-      "source": {
-        "source": "github",
-        "repo": "Marker-Inc-Korea/AutoRAG",
-        "sha": "18b5e832c5c47024c11d450f62d0cc4d6937d6e8"
-      },
-      "description": "AutoRAG 로컬 문서 사서 스킬 4종 (autorag, autorag-setup, autorag-lite-setup, autorag-doctor). 업스트림: Marker-Inc-Korea/AutoRAG",
-      "version": "2026.11.08",
-      "license": "Apache-2.0",
-      "homepage": "https://github.com/Marker-Inc-Korea/AutoRAG",
-      "strict": false,
-      "skills": ["./skills/"]
-    },
-    {
       "name": "playwright",
       "source": "./plugins/playwright",
       "description": "Microsoft Playwright MCP 서버 (@playwright/mcp 0.0.84)"
+    },
+    {
+      "name": "agent-browser",
+      "source": {
+        "source": "github",
+        "repo": "vercel-labs/agent-browser",
+        "sha": "4b0e9f01fa8d214d39bbfe5391257640634fb9a0"
+      },
+      "description": "브라우저 자동화 CLI 스킬 (agent-browser). 업스트림: vercel-labs/agent-browser",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/vercel-labs/agent-browser",
+      "strict": false,
+      "skills": [
+        "./skills/agent-browser"
+      ]
+    },
+    {
+      "name": "find-skills",
+      "source": {
+        "source": "github",
+        "repo": "vercel-labs/skills",
+        "sha": "d3701c11b1101251af14c9d148f026e1a47ebe17"
+      },
+      "description": "설치할 만한 에이전트 스킬을 찾아 주는 스킬. 업스트림: vercel-labs/skills",
+      "homepage": "https://github.com/vercel-labs/skills",
+      "strict": false,
+      "skills": [
+        "./skills/find-skills"
+      ]
+    },
+    {
+      "name": "gsd-core",
+      "source": {
+        "source": "github",
+        "repo": "open-gsd/gsd-core",
+        "sha": "6559d13d8f275ad64a91c9f4c3b186dcce77b42b"
+      },
+      "description": "GSD Core (구 get-shit-done) 스펙 주도 개발 워크플로 스킬 72종과 훅. 업스트림: open-gsd/gsd-core",
+      "license": "MIT",
+      "homepage": "https://github.com/open-gsd/gsd-core"
+    },
+    {
+      "name": "taste-skill",
+      "source": {
+        "source": "github",
+        "repo": "Leonxlnx/taste-skill",
+        "sha": "f6b76575f949707b4e3c37cd86cb44b0b98643e8"
+      },
+      "description": "프런트엔드 디자인 품질 스킬 (design-taste-frontend, tasteskill 2.5.1). 업스트림: Leonxlnx/taste-skill",
+      "license": "MIT",
+      "homepage": "https://github.com/Leonxlnx/taste-skill",
+      "strict": false,
+      "skills": [
+        "./skills/taste-skill"
+      ]
+    },
+    {
+      "name": "mcp-builder",
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills",
+        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
+      },
+      "description": "MCP 서버 설계·구현 가이드 스킬. 업스트림: anthropics/skills",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
+      "strict": false,
+      "skills": [
+        "./skills/mcp-builder"
+      ]
     }
   ]
 }
