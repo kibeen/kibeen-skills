@@ -63,7 +63,8 @@
       "vercel@claude-plugins-official",
       "notion@claude-plugins-official",
       "firecrawl@claude-plugins-official",
-      "repomix-mcp@repomix"
+      "repomix-mcp@repomix",
+      "hyperframes@claude-plugins-official"
     ]
   },
   "renamed": {

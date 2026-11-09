@@ -71,8 +71,6 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 ## 공식 마켓플레이스 플러그인 (`enabledPlugins` 로 켬)
 `playwright`, `superpowers` (모두 `@claude-plugins-official`)
 
-기본에서 뺀 선택 도구: `hyperframes@claude-plugins-official`(HTML 영상 제작, 매 세션 약 3,900 토큰, 슬라이드 요청도 가로챈다). 영상 프로젝트에서만 `claude plugin install hyperframes@claude-plugins-official --scope project`.
-
 - `superpowers` 는 SessionStart 훅이 있다.
 
 ## 원본 마켓플레이스 플러그인
@@ -120,7 +118,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요), `content-research-writer`(블로그용, 보고서·논문 형식에 안 맞음).
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `hyperframes`(매 세션 약 3,900 토큰, 슬라이드 요청을 가로챔), `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요), `content-research-writer`(블로그용, 보고서·논문 형식에 안 맞음).
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. 경로가 깊은 레포는
