@@ -78,15 +78,8 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `taste-skill@taste-skill` | 프런트엔드 디자인 스킬 (`design-taste-frontend`). 회사·마케팅 웹사이트 수준의 규칙과 실제 브라우저 확인 단계가 있다. 매 세션 약 240 토큰, 사용 시 약 7,300 토큰 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) |
 
 ## 이 마켓플레이스의 플러그인
-```
-claude plugin install <이름>@kibeen-skills
-```
-
-| 이름 | 내용 | 여기에 두는 이유 | 업스트림 |
-|---|---|---|---|
-| `content-research-writer` | 리서치·인용·개요 피드백 글쓰기 스킬. 라이선스 표기 없음 | 원본에 마켓플레이스 없음 | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) |
-
-현재 고정 커밋은 `.claude-plugin/marketplace.json` 의 각 `source.sha` 에 있다.
+지금은 `kibeen-skills` 플러그인(묶음 설치 + 동기화 훅) 하나뿐이다. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
+`.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
 역할이 겹쳐 남기지 않은 도구다. `apply-settings.mjs` 가 각 머신에서 정리한다.
@@ -99,7 +92,7 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요).
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요), `content-research-writer`(블로그용, 보고서·논문 형식에 안 맞음).
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. 경로가 깊은 레포는
