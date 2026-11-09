@@ -82,8 +82,7 @@ claude plugin install <플러그인 ID>
 | `perplexity@perplexity-mcp-server` | Perplexity 웹 검색·추론·리서치 MCP. 환경변수 `PERPLEXITY_API_KEY` 필요 | [perplexityai/modelcontextprotocol](https://github.com/perplexityai/modelcontextprotocol) |
 | `caveman@caveman` | 응답 압축 모드. 훅 4개로 항상 켜짐 (Node 필요). 필요할 때만 켜고 평소엔 `claude plugin disable caveman@caveman` | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) |
 | `higgsfield@higgsfield` | 이미지·영상 생성 스킬 9종 (MCP 아님). `higgsfield` CLI 와 `higgsfield auth login` 필요 | [higgsfield-ai/skills](https://github.com/higgsfield-ai/skills) |
-| `repomix-mcp@repomix` | Repomix MCP 서버 | [yamadashy/repomix](https://github.com/yamadashy/repomix) |
-| `repomix-commands@repomix` | `/pack-local`, `/pack-remote` 명령 | 위와 같음 |
+| `repomix-commands@repomix` | `/pack-local`, `/pack-remote` 명령 (MCP 없이 `npx repomix` 로 동작) | [yamadashy/repomix](https://github.com/yamadashy/repomix) |
 | `repomix-explorer@repomix` | Repomix 기반 레포 분석 에이전트와 명령 | 위와 같음 |
 
 ## 이 마켓플레이스의 플러그인
@@ -114,7 +113,7 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`.
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복).
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. `repomix` 처럼 경로가 깊은 레포는

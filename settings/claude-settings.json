@@ -80,7 +80,8 @@
       "supabase@claude-plugins-official",
       "vercel@claude-plugins-official",
       "notion@claude-plugins-official",
-      "firecrawl@claude-plugins-official"
+      "firecrawl@claude-plugins-official",
+      "repomix-mcp@repomix"
     ]
   }
 }
