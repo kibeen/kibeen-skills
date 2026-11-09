@@ -70,8 +70,9 @@
     {
       "name": "mcp-builder",
       "source": {
-        "source": "github",
-        "repo": "anthropics/skills",
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/skills.git",
+        "path": "skills/mcp-builder",
         "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
       },
       "description": "MCP 서버 설계·구현 가이드 스킬. 업스트림: anthropics/skills",
@@ -79,7 +80,7 @@
       "homepage": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
       "strict": false,
       "skills": [
-        "./skills/mcp-builder"
+        "./"
       ]
     },
     {
@@ -114,6 +115,209 @@
       "description": "응답을 짧게 압축하는 caveman 모드 스킬과 세션·프롬프트 훅. 업스트림: JuliusBrussee/caveman",
       "license": "Apache-2.0",
       "homepage": "https://github.com/JuliusBrussee/caveman"
+    },
+    {
+      "name": "superpowers-lab",
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-lab",
+        "sha": "51111f74f24058117752d9aa917cb19859f8ec86"
+      },
+      "description": "superpowers 실험 스킬 4종 (tmux 대화형 명령, mcp-cli, 중복 함수 탐지, windows-vm). 업스트림: obra/superpowers-lab",
+      "license": "MIT",
+      "homepage": "https://github.com/obra/superpowers-lab"
+    },
+    {
+      "name": "skill-seekers",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/yusufkaraaslan/Skill_Seekers.git",
+        "path": "distribution/claude-plugin",
+        "sha": "5b5d8dfca263fa76e6daae9f292890b311ef36aa"
+      },
+      "description": "문서 사이트·GitHub·PDF 등을 스킬로 변환 (skill-builder 스킬, 명령 3종, MCP). pip install \"skill-seekers[mcp]\" 필요. 업스트림: yusufkaraaslan/Skill_Seekers",
+      "license": "MIT",
+      "homepage": "https://github.com/yusufkaraaslan/Skill_Seekers"
+    },
+    {
+      "name": "repomix-mcp",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/yamadashy/repomix.git",
+        "path": ".claude/plugins/repomix-mcp",
+        "sha": "758c3d716907abff2b902aff0447c347e455a2da"
+      },
+      "description": "Repomix MCP 서버 (레포 전체를 하나의 파일로 패킹·검색). 업스트림: yamadashy/repomix",
+      "license": "MIT",
+      "homepage": "https://repomix.com/docs/guide/claude-code-plugins"
+    },
+    {
+      "name": "repomix-commands",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/yamadashy/repomix.git",
+        "path": ".claude/plugins/repomix-commands",
+        "sha": "758c3d716907abff2b902aff0447c347e455a2da"
+      },
+      "description": "Repomix 슬래시 명령 /pack-local, /pack-remote. 업스트림: yamadashy/repomix",
+      "license": "MIT",
+      "homepage": "https://repomix.com/docs/guide/claude-code-plugins"
+    },
+    {
+      "name": "repomix-explorer",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/yamadashy/repomix.git",
+        "path": ".claude/plugins/repomix-explorer",
+        "sha": "758c3d716907abff2b902aff0447c347e455a2da"
+      },
+      "description": "Repomix 기반 레포 분석 에이전트와 명령. 업스트림: yamadashy/repomix",
+      "license": "MIT",
+      "homepage": "https://repomix.com/docs/guide/claude-code-plugins"
+    },
+    {
+      "name": "canvas-design",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/skills.git",
+        "path": "skills/canvas-design",
+        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
+      },
+      "description": "포스터·아트워크 등 시각 디자인 스킬. 업스트림: anthropics/skills",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "algorithmic-art",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/skills.git",
+        "path": "skills/algorithmic-art",
+        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
+      },
+      "description": "p5.js 제너러티브 아트 스킬. 업스트림: anthropics/skills",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/anthropics/skills/tree/main/skills/algorithmic-art",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "design-skills",
+      "source": {
+        "source": "github",
+        "repo": "master5d/claude-design-skills",
+        "sha": "5cf7b695d50a29d93e0336872cbf9a8d5b44b103"
+      },
+      "description": "디자인 스킬 묶음 6종 (baseline-ui, emil-design-eng, interface-design, 접근성·메타데이터·모션 수정). 업스트림: master5d/claude-design-skills",
+      "homepage": "https://github.com/master5d/claude-design-skills"
+    },
+    {
+      "name": "content-research-writer",
+      "source": {
+        "source": "github",
+        "repo": "ComposioHQ/awesome-claude-skills",
+        "sha": "be2a406907dbc61b73e6827ded415c96139d13a2"
+      },
+      "description": "리서치·인용·개요·섹션별 피드백으로 글쓰기를 돕는 스킬. 업스트림: ComposioHQ/awesome-claude-skills",
+      "homepage": "https://github.com/ComposioHQ/awesome-claude-skills/tree/master/content-research-writer",
+      "strict": false,
+      "skills": [
+        "./content-research-writer"
+      ]
+    },
+    {
+      "name": "systematic-debugging",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/obra/superpowers.git",
+        "path": "skills/systematic-debugging",
+        "sha": "22f0b463e7a5e579904dd6211a520321035526f7"
+      },
+      "description": "superpowers 의 systematic-debugging 스킬만 단독 설치. superpowers 와 함께 설치하지 말 것. 업스트림: obra/superpowers",
+      "license": "MIT",
+      "homepage": "https://github.com/obra/superpowers",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "test-driven-development",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/obra/superpowers.git",
+        "path": "skills/test-driven-development",
+        "sha": "22f0b463e7a5e579904dd6211a520321035526f7"
+      },
+      "description": "superpowers 의 test-driven-development 스킬만 단독 설치. superpowers 와 함께 설치하지 말 것. 업스트림: obra/superpowers",
+      "license": "MIT",
+      "homepage": "https://github.com/obra/superpowers",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "tapestry",
+      "source": {
+        "source": "github",
+        "repo": "michalparkola/tapestry-skills",
+        "sha": "80e1dc56df74d1cb849ad649c7ead9756e7929bb"
+      },
+      "description": "Tapestry 생산성 스킬 7종 (learn-this, ship-learn-next, youtube-transcript, article-extractor, scrum-sage, session-log, unblock-action). 업스트림: michalparkola/tapestry-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/michalparkola/tapestry-skills",
+      "strict": false,
+      "skills": [
+        "./learn-this",
+        "./ship-learn-next",
+        "./youtube-transcript",
+        "./article-extractor",
+        "./scrum-sage",
+        "./session-log",
+        "./unblock-action"
+      ]
+    },
+    {
+      "name": "hyperframes",
+      "source": {
+        "source": "github",
+        "repo": "heygen-com/hyperframes",
+        "sha": "7bf65995b34fc2293bdd0b8e6273e86e56e1c3b1"
+      },
+      "description": "HyperFrames (HTML 로 영상 작성·렌더) 스킬 모음. 업스트림: heygen-com/hyperframes",
+      "license": "Apache-2.0",
+      "homepage": "https://hyperframes.heygen.com"
+    },
+    {
+      "name": "impeccable",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/pbakaus/impeccable.git",
+        "path": "plugin",
+        "sha": "613fbf88e0ef08709eaf238653285f430250c0ea"
+      },
+      "description": "프런트엔드 디자인 어휘·리뷰 스킬과 에이전트 4종, 편집 후 검사 훅. 업스트림: pbakaus/impeccable",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/pbakaus/impeccable"
+    },
+    {
+      "name": "frontend-design",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/frontend-design",
+        "sha": "0412be76f50ab4f4f8abff3753efa9269fbbca5b"
+      },
+      "description": "Anthropic 공식 frontend-design 스킬. 업스트림: anthropics/claude-plugins-official",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/anthropics/claude-plugins-official/tree/main/plugins/frontend-design"
     }
   ]
 }
