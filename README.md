@@ -61,9 +61,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
   - 릴리스 직후 커밋을 바로 받지 않으려면 저장소 변수 `MIN_AGE_DAYS` 를 설정한다(예: 3 → 3일 이상 지난 커밋만 채택).
 
 ## 공식 마켓플레이스 플러그인 (`enabledPlugins` 로 켬)
-`playwright`, `superpowers`, `hyperframes`, `firecrawl` (모두 `@claude-plugins-official`)
+`playwright`, `superpowers`, `hyperframes` (모두 `@claude-plugins-official`)
 
-- `firecrawl` 은 API 키가 필요하다. `superpowers` 는 SessionStart 훅이 있다.
+- `superpowers` 는 SessionStart 훅이 있다.
 
 ## 원본 마켓플레이스 플러그인
 기본으로 켬 (`enabledPlugins`):
@@ -114,7 +114,7 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`.
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`.
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. `repomix` 처럼 경로가 깊은 레포는
