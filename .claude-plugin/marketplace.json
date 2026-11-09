@@ -8,11 +8,6 @@
   },
   "plugins": [
     {
-      "name": "playwright",
-      "source": "./plugins/playwright",
-      "description": "Microsoft Playwright MCP 서버 (@playwright/mcp 0.0.84)"
-    },
-    {
       "name": "agent-browser",
       "source": {
         "source": "github",
@@ -46,7 +41,7 @@
       "source": {
         "source": "github",
         "repo": "open-gsd/gsd-core",
-        "sha": "6559d13d8f275ad64a91c9f4c3b186dcce77b42b"
+        "sha": "2d1fb4f053e07d687ca24ea351a64ba08cef07d4"
       },
       "description": "GSD Core (구 get-shit-done) 스펙 주도 개발 워크플로 스킬 72종과 훅. 업스트림: open-gsd/gsd-core",
       "license": "MIT",
@@ -82,17 +77,6 @@
       "skills": [
         "./"
       ]
-    },
-    {
-      "name": "superpowers",
-      "source": {
-        "source": "github",
-        "repo": "obra/superpowers",
-        "sha": "22f0b463e7a5e579904dd6211a520321035526f7"
-      },
-      "description": "TDD, 디버깅, 계획·실행, 코드 리뷰 등 개발 방법론 스킬 모음과 SessionStart 훅. 업스트림: obra/superpowers",
-      "license": "MIT",
-      "homepage": "https://github.com/obra/superpowers"
     },
     {
       "name": "ui-ux-pro-max",
@@ -285,17 +269,6 @@
       ]
     },
     {
-      "name": "hyperframes",
-      "source": {
-        "source": "github",
-        "repo": "heygen-com/hyperframes",
-        "sha": "7bf65995b34fc2293bdd0b8e6273e86e56e1c3b1"
-      },
-      "description": "HyperFrames (HTML 로 영상 작성·렌더) 스킬 모음. 업스트림: heygen-com/hyperframes",
-      "license": "Apache-2.0",
-      "homepage": "https://hyperframes.heygen.com"
-    },
-    {
       "name": "impeccable",
       "source": {
         "source": "git-subdir",
@@ -306,18 +279,6 @@
       "description": "프런트엔드 디자인 어휘·리뷰 스킬과 에이전트 4종, 편집 후 검사 훅. 업스트림: pbakaus/impeccable",
       "license": "Apache-2.0",
       "homepage": "https://github.com/pbakaus/impeccable"
-    },
-    {
-      "name": "frontend-design",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/anthropics/claude-plugins-official.git",
-        "path": "plugins/frontend-design",
-        "sha": "0412be76f50ab4f4f8abff3753efa9269fbbca5b"
-      },
-      "description": "Anthropic 공식 frontend-design 스킬. 업스트림: anthropics/claude-plugins-official",
-      "license": "Apache-2.0",
-      "homepage": "https://github.com/anthropics/claude-plugins-official/tree/main/plugins/frontend-design"
     },
     {
       "name": "railway-timetable",
@@ -1255,77 +1216,6 @@
       ]
     },
     {
-      "name": "canva",
-      "description": "Create, edit, review, resize, and brand-check Canva designs with the Canva MCP server. (anthropics/claude-plugins-official 항목 미러)",
-      "author": {
-        "name": "Canva"
-      },
-      "category": "design",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/canva-sdks/canva-skills.git",
-        "path": "plugins/canva",
-        "ref": "main",
-        "sha": "bfcbc681560f6031e9949ea52f81e20beb87e39e"
-      },
-      "homepage": "https://www.canva.com"
-    },
-    {
-      "name": "chrome-devtools-mcp",
-      "description": "Control and inspect a live Chrome browser from your coding agent. Record performance traces, analyze network requests, check console messages with source-mapped stack traces, and automate browser actions with Puppeteer. (anthropics/claude-plugins-official 항목 미러)",
-      "category": "development",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp.git",
-        "sha": "a878bcad39584337e055778353246820deafa7c0"
-      },
-      "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp"
-    },
-    {
-      "name": "firecrawl",
-      "description": "Web scraping and crawling powered by Firecrawl. Turn any website into clean, LLM-ready markdown or structured data. Scrape single pages, crawl entire sites, search the web, and extract structured information. Includes an AI agent for autonomous multi-source data gathering - just describe what you need and it finds, navigates, and extracts automatically. (anthropics/claude-plugins-official 항목 미러)",
-      "category": "development",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/firecrawl/firecrawl-claude-plugin.git",
-        "sha": "3e1fb0c319d71b067906b8b602208dded3932cdb"
-      },
-      "homepage": "https://github.com/firecrawl/firecrawl-claude-plugin.git"
-    },
-    {
-      "name": "notion",
-      "description": "Notion workspace integration. Search pages, create and update documents, manage databases, and access your team's knowledge base directly from Claude Code for seamless documentation workflows. (anthropics/claude-plugins-official 항목 미러)",
-      "category": "productivity",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/makenotion/claude-code-notion-plugin.git",
-        "sha": "9847f2aa1a15f25df35ed1fb7b4557dbb60cd651"
-      },
-      "homepage": "https://github.com/makenotion/claude-code-notion-plugin"
-    },
-    {
-      "name": "supabase",
-      "description": "Supabase MCP integration for database operations, authentication, storage, and real-time subscriptions. Manage your Supabase projects, run SQL queries, and interact with your backend directly. (anthropics/claude-plugins-official 항목 미러)",
-      "category": "database",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/supabase-community/supabase-plugin.git",
-        "sha": "2c6d02d4565babe784103ee4d446a93ae9b24151"
-      },
-      "homepage": "https://github.com/supabase-community/supabase-plugin"
-    },
-    {
-      "name": "vercel",
-      "description": "Vercel deployment platform integration. Manage deployments, check build status, access logs, configure domains, and control your frontend infrastructure directly from Claude Code. (anthropics/claude-plugins-official 항목 미러)",
-      "category": "deployment",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/vercel/vercel-plugin.git",
-        "sha": "882e66c2698689324c341b7bb8fd8beb92c27bf6"
-      },
-      "homepage": "https://github.com/vercel/vercel-plugin"
-    },
-    {
       "name": "perplexity",
       "source": {
         "source": "github",
@@ -1333,7 +1223,6 @@
         "sha": "cd1d27cffe56739819abb3e56a18e26dbd88c487"
       },
       "description": "Perplexity 공식 MCP 서버 (실시간 웹 검색·추론·리서치). PERPLEXITY_API_KEY 필요. 업스트림: perplexityai/modelcontextprotocol",
-      "version": "1.4.0",
       "license": "MIT",
       "homepage": "https://docs.perplexity.ai/guides/mcp-server",
       "strict": false,
@@ -1360,7 +1249,6 @@
         "sha": "27000402070db19d958789d05b3b52b6f4718d7c"
       },
       "description": "Higgsfield 공식 이미지·영상 생성 스킬 9종 (Higgsfield CLI 와 로그인 필요). 업스트림: higgsfield-ai/skills",
-      "version": "0.14.0",
       "license": "MIT",
       "homepage": "https://higgsfield.ai",
       "skills": [

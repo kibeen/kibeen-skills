@@ -1,0 +1,32 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": { "source": "git", "url": "https://github.com/anthropics/claude-plugins-official.git" },
+      "autoUpdate": true
+    },
+    "kibeen-skills": {
+      "source": { "source": "github", "repo": "kibeen/kibeen-skills" },
+      "autoUpdate": true
+    },
+    "kraken-skills": {
+      "source": { "source": "github", "repo": "kibeen/kraken-skills" },
+      "autoUpdate": true
+    },
+    "thedotmack": {
+      "source": { "source": "github", "repo": "thedotmack/claude-mem" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "playwright@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "hyperframes@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "canva@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "firecrawl@claude-plugins-official": true,
+    "notion@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
+  }
+}

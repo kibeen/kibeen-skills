@@ -1,0 +1,43 @@
+name: Sync upstream pins
+
+# Moves each plugin's pinned upstream commit / npm version to the latest release,
+# so machines with auto-update on pick up upstream changes.
+on:
+  schedule:
+    - cron: "17 21 * * *" # every day 06:17 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump pins
+        id: sync
+        run: node scripts/sync-upstream.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Repository variable; set it to e.g. 3 to adopt only releases at least 3 days old.
+          MIN_AGE_DAYS: ${{ vars.MIN_AGE_DAYS || '0' }}
+
+      - name: Commit and push
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          node -e 'JSON.parse(require("fs").readFileSync(".claude-plugin/marketplace.json","utf8"))'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A .claude-plugin plugins
+          git commit -m "chore: sync upstream pins"
+          git push
