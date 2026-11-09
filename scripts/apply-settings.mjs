@@ -11,10 +11,10 @@
 //    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
 //    - Every other key in settings.json is left as is. A timestamped backup is written first.
 //
-// Usage: node scripts/apply-settings.mjs [--dry-run | --check [--hook]] [--marketplaces-only]
+// Usage: node scripts/apply-settings.mjs [--dry-run | --check] [--hook] [--marketplaces-only]
 //   --dry-run            print every step, change nothing
 //   --check              print only what differs, change nothing; exit 2 when something differs
-//   --hook               with --check: print a Claude Code hook JSON {"systemMessage": ...} or nothing
+//   --hook               print only a Claude Code hook JSON {"systemMessage": ...} (or nothing when in sync)
 //   --marketplaces-only  skip enabling plugins (clean-up and marketplace declarations still run)
 import fs from "node:fs";
 import os from "node:os";
@@ -29,7 +29,7 @@ const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "ma
 const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 const file = path.join(dir, "settings.json");
 const CHECK = process.argv.includes("--check");
-const HOOK = CHECK && process.argv.includes("--hook");
+const HOOK = process.argv.includes("--hook");
 const DRY = CHECK || process.argv.includes("--dry-run");
 const MARKETS_ONLY = process.argv.includes("--marketplaces-only");
 const log = HOOK ? () => {} : console.log;
@@ -39,9 +39,10 @@ let backedUp = false;
 function backupOnce() {
   if (backedUp || !fs.existsSync(file)) return;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  fs.copyFileSync(file, `${file}.bak-${stamp}`);
+  backupPath = `${file}.bak-${stamp}`;
+  fs.copyFileSync(file, backupPath);
   backedUp = true;
-  log(`Backup: ${file}.bak-${stamp}`);
+  log(`Backup: ${backupPath}`);
 }
 
 function claude(args) {
@@ -64,6 +65,23 @@ function claudeJson(args) {
 }
 
 const diffs = []; // human-readable list of what differs from the repo
+let failures = 0;
+let backupPath = "";
+
+function summary() {
+  const count = re => diffs.filter(d => re.test(d)).length;
+  return [
+    [count(/^(remove marketplace|uninstall)/), "정리"],
+    [count(/^marketplace /), "마켓플레이스 선언"],
+    [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
+  ]
+    .filter(([n]) => n)
+    .map(([n, label]) => `${label} ${n}건`)
+    .join(", ");
+}
+function hookMessage(text) {
+  process.stdout.write(JSON.stringify({ systemMessage: text }) + "\n");
+}
 
 // ---- 1. clean-up ---------------------------------------------------------
 const retired = fragment.retired || {};
@@ -96,6 +114,7 @@ for (const step of plan) {
   }
   backupOnce();
   const r = claude(step.args);
+  if (!r.ok) failures++;
   log(`${r.ok ? "done" : "FAILED"}: ${step.what}${r.ok ? "" : "\n  " + r.out.trim().split("\n").pop()}`);
 }
 
@@ -138,16 +157,7 @@ diffs.push(...report);
 
 if (CHECK) {
   if (HOOK) {
-    if (diffs.length) {
-      const count = re => diffs.filter(d => re.test(d)).length;
-      const parts = [
-        [count(/^(remove marketplace|uninstall)/), "정리"],
-        [count(/^marketplace /), "마켓플레이스 선언"],
-        [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
-      ].filter(([n]) => n).map(([n, label]) => `${label} ${n}건`);
-      const msg = `kibeen-skills 설정과 다름 (${parts.join(", ")}). 확인: node "${SELF}" --dry-run`;
-      process.stdout.write(JSON.stringify({ systemMessage: msg }) + "\n");
-    }
+    if (diffs.length) hookMessage(`kibeen-skills 설정과 다름 (${summary()}). 확인: node "${SELF}" --dry-run`);
   } else {
     console.log(diffs.length ? `${diffs.length} item(s) differ:\n` + diffs.map(d => "  " + d).join("\n") : "In sync.");
   }
@@ -155,9 +165,15 @@ if (CHECK) {
 }
 
 log([file, ...(report.length ? report : ["Settings already up to date."]), ...notes].join("\n"));
-if (DRY || !report.length) process.exit(0);
-
-fs.mkdirSync(dir, { recursive: true });
-backupOnce();
-fs.writeFileSync(file, JSON.stringify(next, null, 2) + "\n");
-log("Written. Restart Claude Code; enabled plugins that are not installed yet are fetched on startup.");
+if (!DRY && report.length) {
+  fs.mkdirSync(dir, { recursive: true });
+  backupOnce();
+  fs.writeFileSync(file, JSON.stringify(next, null, 2) + "\n");
+  log("Written. Restart Claude Code; enabled plugins that are not installed yet are fetched on startup.");
+}
+if (HOOK && !DRY && diffs.length) {
+  hookMessage(
+    `kibeen-skills 설정을 자동 적용했습니다 (${summary()}${failures ? `, 실패 ${failures}건` : ""}). ` +
+      `새로 켠 플러그인은 다음 세션부터 쓸 수 있습니다. 되돌리기: ${backupPath || "백업 없음"}`,
+  );
+}

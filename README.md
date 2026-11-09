@@ -23,9 +23,12 @@ claude plugin uninstall kibeen-core@kibeen-skills --prune   # 지울 때: 함께
 - 의존성 목록은 `plugins/kibeen-core/.claude-plugin/plugin.json`. `settings/claude-settings.json` 의 `enabledPlugins` 와 같게 유지한다.
 - 다른 마켓플레이스 의존성은 `.claude-plugin/marketplace.json` 의 `allowCrossMarketplaceDependenciesOn` 에 그 마켓플레이스가 있어야 한다.
 - 이 방식은 설치만 한다. 다른 플러그인을 지우거나 끄는 것은 아래 `apply-settings.mjs` 로 한다.
-- `kibeen-core` 의 SessionStart 훅이 하루 한 번 이 머신과 설정을 비교해, 다르면 한 줄 알림만 띄운다(변경 없음, 모델 컨텍스트에 넣지 않음).
-  알림이 뜨면 `node ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply-settings.mjs --dry-run` 으로 확인하고 `--dry-run` 없이 적용한다.
-  차이만 보려면 `--check`.
+- `kibeen-core` 의 SessionStart 훅이 이 레포에 새 커밋이 있을 때, 아니면 하루 한 번 이 머신을 설정에 맞춘다.
+  설치·켜기·제거를 모두 자동 적용하고(설정 백업 생성), 무엇을 했는지 한 줄 알림을 띄운다. 모델 컨텍스트에는 넣지 않는다.
+  새로 켠 플러그인은 다음 세션부터 쓸 수 있다.
+- 자동 적용 대신 알림만 받으려면 환경변수 `KIBEEN_AUTO_APPLY=0`. 수동 확인은
+  `node ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply-settings.mjs --dry-run`.
+- 제거 목록(`retired`)에 있는 도구는 그 머신에서 직접 다시 설치해도 다음 동기화 때 다시 제거된다.
 
 ## 새 머신 설정 (1회)
 ```bash
