@@ -45,6 +45,22 @@ kibeen 개인 Claude Code 플러그인 마켓플레이스 (private).
 새 플러그인은 `plugins/<이름>/` 에 두고 `.claude-plugin/marketplace.json` 의 `plugins` 에 추가한다.
 
 
+## 외부 서비스 연동 (MCP)
+
+| 이름 | 내용 | 준비물 | 출처 |
+|---|---|---|---|
+| `perplexity` | Perplexity 웹 검색·추론·리서치 MCP (`@perplexity-ai/mcp-server@1.3.0` 고정) | 환경변수 `PERPLEXITY_API_KEY` | [perplexityai/modelcontextprotocol](https://github.com/perplexityai/modelcontextprotocol), `cd1d27c` |
+| `firecrawl` | 웹 스크래핑·크롤링 MCP + 스킬 3종 | Firecrawl API 키 | 공식 마켓플레이스 미러 |
+| `chrome-devtools-mcp` | 실행 중인 Chrome 제어·검사 MCP + 스킬 7종 | Chrome | 공식 마켓플레이스 미러 |
+| `higgsfield` | Higgsfield 이미지·영상 생성 스킬 9종 (MCP 아님, Higgsfield CLI 사용) | `higgsfield` CLI 설치와 `higgsfield auth login` | [higgsfield-ai/skills](https://github.com/higgsfield-ai/skills), `2700040` |
+| `canva` | Canva 디자인 MCP + 스킬 6종 | Canva 계정 (OAuth) | 공식 마켓플레이스 미러 |
+| `notion` | Notion 워크스페이스 MCP + 스킬 6종 | Notion 계정 (OAuth) | 공식 마켓플레이스 미러 |
+| `supabase` | Supabase MCP + 스킬 2종 | Supabase 계정 | 공식 마켓플레이스 미러 |
+| `vercel` | Vercel MCP + 스킬 37종 + 훅 3개 (SessionStart, PostToolUse, SessionEnd) | Vercel 계정 | 공식 마켓플레이스 미러 |
+
+"공식 마켓플레이스 미러" 는 `anthropics/claude-plugins-official` (커밋 `0412be7`) 의 항목을 소스·고정 커밋 그대로 옮긴 것이다.
+같은 플러그인을 `claude-plugins-official` 에서도 설치할 수 있으니 한 머신에는 한 곳에서만 설치한다.
+
 ## k-skill (한국 생활·업무 스킬)
 [NomaDamas/k-skill](https://github.com/NomaDamas/k-skill) (MIT) 에서 고른 55개 스킬을 각각 별도 플러그인으로 넣었다.
 업스트림 `plugin.json` 이 90여 개 스킬 전체를 선언해 일부만 묶을 수 없기 때문에, 스킬 폴더 하나씩을 `git-subdir` 로 가리킨다 (커밋 `9766d20`).
