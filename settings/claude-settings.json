@@ -33,7 +33,14 @@
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "hyperframes@claude-plugins-official": true,
-    "taste-skill@taste-skill": true
+    "taste-skill@taste-skill": true,
+    "scientific-writing@kibeen-skills": true,
+    "citation-management@kibeen-skills": true,
+    "literature-review@kibeen-skills": true,
+    "peer-review@kibeen-skills": true,
+    "venue-templates@kibeen-skills": true,
+    "paper-lookup@kibeen-skills": true,
+    "doc-coauthoring@kibeen-skills": true
   },
   "retired": {
     "//": "apply-settings.mjs removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",

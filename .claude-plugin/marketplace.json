@@ -11,6 +11,118 @@
       "name": "kibeen-skills",
       "source": "./plugins/kibeen-skills",
       "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치)"
+    },
+    {
+      "name": "scientific-writing",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/scientific-writing",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "논문 원고 작성 (IMRAD 구조, 문단 단위 서술, 보고 지침). 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/scientific-writing",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "citation-management",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/citation-management",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "인용 관리 (DOI·PubMed·OpenAlex 메타데이터, BibTeX). 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/citation-management",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "literature-review",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/literature-review",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "체계적 문헌 조사와 정리. 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/literature-review",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "peer-review",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/peer-review",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "심사위원 관점 원고 검토. 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/peer-review",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "venue-templates",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/venue-templates",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "학회·저널 양식과 제출 요건. 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/venue-templates",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "paper-lookup",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+        "path": "skills/paper-lookup",
+        "sha": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a"
+      },
+      "description": "논문 검색 (PubMed, arXiv, Semantic Scholar 등, 키 불필요). 업스트림: K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "homepage": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/paper-lookup",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "doc-coauthoring",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/skills.git",
+        "path": "skills/doc-coauthoring",
+        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
+      },
+      "description": "기술 문서·제안서·설계 문서 공동 작성 절차 (Anthropic 공식). 업스트림: anthropics/skills",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/anthropics/skills/tree/main/skills/doc-coauthoring",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
     }
   ],
   "allowCrossMarketplaceDependenciesOn": [

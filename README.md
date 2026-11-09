@@ -86,7 +86,22 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `pr-reviewer` | 서브에이전트 | `pr-review-loop` 의 독립 리뷰어. 코드 결함과 PoC 평가 계획을 보고 PR 코멘트로 VERDICT 를 남긴다 |
 | 동기화 훅 | SessionStart 훅 | 이 머신을 `settings/` 에 맞춘다(설치·제거·답변 지침) |
 
-매 세션 비용 약 100 토큰. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
+매 세션 비용 약 100 토큰.
+
+### 논문·기술 문서 작성 스킬 (기본 켬)
+각 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다. API 키는 모두 선택이다(없어도 동작, 넣으면 검색 한도가 늘어난다).
+
+| 이름 | 하는 일 | 원본 |
+|---|---|---|
+| `scientific-writing` | 논문 원고 작성 (IMRAD 구조, 문단 단위 서술, 보고 지침) | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) (MIT) |
+| `citation-management` | 인용 관리 (DOI·PubMed·OpenAlex 메타데이터, BibTeX). 선택: `NCBI_API_KEY`, `OPENALEX_API_KEY` | 위와 같음 |
+| `literature-review` | 체계적 문헌 조사와 정리. 선택: `OPENROUTER_API_KEY`, PDF 출력은 Pandoc·XeLaTeX | 위와 같음 |
+| `peer-review` | 심사위원 관점 원고 검토 | 위와 같음 |
+| `venue-templates` | 학회·저널 양식과 제출 요건 | 위와 같음 |
+| `paper-lookup` | 논문 검색 (PubMed, arXiv, Semantic Scholar 등). 키 불필요 | 위와 같음 |
+| `doc-coauthoring` | 기술 문서·제안서·설계 문서 공동 작성 절차 | [anthropics/skills](https://github.com/anthropics/skills) (Anthropic 공식) |
+
+7개 합계 매 세션 약 820 토큰. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
 `.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
