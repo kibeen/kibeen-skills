@@ -8,12 +8,29 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
 const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 const dataDir = process.env.CLAUDE_PLUGIN_DATA || path.join(configDir, "plugins", "data", "kibeen-skills");
-const stampFile = path.join(dataDir, "last-sync.json");
 const autoApply = process.env.KIBEEN_AUTO_APPLY !== "0";
+
+// Installed with --scope project -> sync that project only; otherwise sync the user settings.
+const projectDir = process.env.CLAUDE_PROJECT_DIR;
+function enabledInProject(dir) {
+  for (const f of ["settings.json", "settings.local.json"]) {
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(dir, ".claude", f), "utf8"));
+      if (s.enabledPlugins?.["kibeen-skills@kibeen-skills"]) return true;
+    } catch {
+      // missing or unreadable settings file
+    }
+  }
+  return false;
+}
+const scope = projectDir && enabledInProject(projectDir) ? "project" : "user";
+const stampKey = scope === "project" ? crypto.createHash("sha1").update(path.resolve(projectDir)).digest("hex").slice(0, 12) : "user";
+const stampFile = path.join(dataDir, `last-sync-${stampKey}.json`);
 
 function marketplaceRoot() {
   const local = path.join(configDir, "plugins", "marketplaces", "kibeen-skills");
@@ -46,10 +63,15 @@ try {
   const last = fs.existsSync(stampFile) ? JSON.parse(fs.readFileSync(stampFile, "utf8")) : {};
   if (sha && sha === last.sha && Date.now() - (last.at || 0) < INTERVAL_MS) process.exit(0);
 
-  const args = [path.join(root, "scripts", "apply-settings.mjs"), "--hook", ...(autoApply ? [] : ["--check"])];
+  const args = [
+    path.join(root, "scripts", "apply-settings.mjs"),
+    "--hook",
+    ...(autoApply ? [] : ["--check"]),
+    ...(scope === "project" ? ["--scope", "project", "--project-dir", projectDir] : []),
+  ];
   const r = spawnSync(process.execPath, args, { encoding: "utf8", timeout: 110000 });
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now(), sha, status: r.status, mode: autoApply ? "apply" : "check" }) + "\n");
+  fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now(), sha, scope, status: r.status, mode: autoApply ? "apply" : "check" }) + "\n");
   if (r.stdout && r.stdout.trim().startsWith("{")) process.stdout.write(r.stdout);
 } catch {
   // A failed sync must never get in the way of starting a session.

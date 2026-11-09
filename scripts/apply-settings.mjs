@@ -13,7 +13,12 @@
 // 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
 //    (other content untouched, backup first).
 //
-// Usage: node scripts/apply-settings.mjs [--dry-run | --check] [--hook] [--marketplaces-only]
+// Usage: node scripts/apply-settings.mjs [--scope user|project] [--project-dir DIR]
+//                                        [--dry-run | --check] [--hook] [--marketplaces-only]
+//   --scope project      apply to one project instead of the user: <DIR>/.claude/settings.json and
+//                        <DIR>/.claude/CLAUDE.md; marketplaces and plugins are added/installed with
+//                        --scope project (project-enabled plugins are not fetched on startup).
+//                        DIR defaults to $CLAUDE_PROJECT_DIR, then the current directory.
 //   --dry-run            print every step, change nothing
 //   --check              print only what differs, change nothing; exit 2 when something differs
 //   --hook               print only a Claude Code hook JSON {"systemMessage": ...} (or nothing when in sync)
@@ -28,8 +33,25 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SELF = path.join(ROOT, "scripts", "apply-settings.mjs");
 const fragment = JSON.parse(fs.readFileSync(path.join(ROOT, "settings", "claude-settings.json"), "utf8"));
 const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "marketplace.json"), "utf8"));
-const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+const argVal = name => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
+const SCOPE = argVal("--scope") || "user";
+if (!["user", "project"].includes(SCOPE)) {
+  console.error("--scope must be user or project");
+  process.exit(1);
+}
+const PROJECT_DIR = path.resolve(argVal("--project-dir") || process.env.CLAUDE_PROJECT_DIR || process.cwd());
+const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+const dir = SCOPE === "project" ? path.join(PROJECT_DIR, ".claude") : configDir;
 const file = path.join(dir, "settings.json");
+const scopeArgs = ["--scope", SCOPE];
+const norm = p => path.resolve(p || "").replace(/[\\/]+$/, "");
+const samePath = (a, b) => (process.platform === "win32" ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b));
+const inScope = p => (p.scope || "user") === SCOPE && (SCOPE !== "project" || samePath(p.projectPath, PROJECT_DIR));
+const sourceArg = src =>
+  src?.source === "github" ? src.repo : src?.source === "git" || src?.source === "url" ? src.url : null;
 const CHECK = process.argv.includes("--check");
 const HOOK = process.argv.includes("--hook");
 const DRY = CHECK || process.argv.includes("--dry-run");
@@ -73,9 +95,9 @@ let backupPath = "";
 function summary() {
   const count = re => diffs.filter(d => re.test(d)).length;
   return [
-    [count(/^install /), "이름 변경 설치"],
+    [count(/^install /), "설치"],
     [count(/^(remove marketplace|uninstall)/), "정리"],
-    [count(/^marketplace /), "마켓플레이스 선언"],
+    [count(/^(marketplace |add marketplace)/), "마켓플레이스 선언"],
     [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
     [count(/^CLAUDE\.md /), "답변 지침"],
   ]
@@ -96,24 +118,44 @@ if (!installed || !known) {
   log("claude CLI not available: skipping clean-up of retired marketplaces and plugins.");
 } else {
   const declared = readSettings().extraKnownMarketplaces || {};
-  const knownNames = new Set([...known.map(m => m.name), ...Object.keys(declared)]);
+  const knownNames = new Set(known.map(m => m.name));
+  // A project only owns the marketplaces its own settings declare.
+  const ownedNames = new Set(SCOPE === "project" ? Object.keys(declared) : [...knownNames, ...Object.keys(declared)]);
   for (const m of retired.marketplaces || []) {
-    if (knownNames.has(m)) plan.push({ what: `remove marketplace ${m}`, args: ["plugin", "marketplace", "remove", m] });
+    if (ownedNames.has(m))
+      plan.push({ what: `remove marketplace ${m}`, args: ["plugin", "marketplace", "remove", m, ...scopeArgs] });
   }
   const goneMarkets = new Set(plan.map(p => p.args[3]));
   const inCatalog = new Set(catalog.plugins.map(p => `${p.name}@${catalog.name}`));
   const retiredPlugins = new Set(retired.plugins || []);
-  const installedIds = new Set(installed.map(p => p.id));
+  const mine = installed.filter(inScope);
+  const installedIds = new Set(mine.map(p => p.id));
   // Renamed plugins: install the new id before the old one is removed below.
   for (const [oldId, newId] of Object.entries(fragment.renamed || {})) {
     if (installedIds.has(oldId) && !installedIds.has(newId))
-      plan.push({ what: `install ${newId} (renamed from ${oldId})`, args: ["plugin", "install", newId] });
+      plan.push({ what: `install ${newId} (renamed from ${oldId})`, args: ["plugin", "install", newId, ...scopeArgs] });
   }
-  for (const { id } of installed) {
+  for (const { id } of mine) {
     if (goneMarkets.has(id.split("@")[1])) continue; // removed with its marketplace
-    if (retiredPlugins.has(id)) plan.push({ what: `uninstall ${id} (retired)`, args: ["plugin", "uninstall", id] });
+    if (retiredPlugins.has(id))
+      plan.push({ what: `uninstall ${id} (retired)`, args: ["plugin", "uninstall", id, ...scopeArgs] });
     else if (id.endsWith(`@${catalog.name}`) && !inCatalog.has(id))
-      plan.push({ what: `uninstall ${id} (no longer in ${catalog.name})`, args: ["plugin", "uninstall", id] });
+      plan.push({ what: `uninstall ${id} (no longer in ${catalog.name})`, args: ["plugin", "uninstall", id, ...scopeArgs] });
+  }
+  if (SCOPE === "project") {
+    // Project settings are not fetched on startup, so add and install explicitly.
+    for (const [name, entry] of Object.entries(fragment.extraKnownMarketplaces || {})) {
+      const src = sourceArg(entry.source);
+      if (!knownNames.has(name) && src)
+        plan.push({ what: `add marketplace ${name}`, args: ["plugin", "marketplace", "add", src, ...scopeArgs] });
+    }
+    if (!MARKETS_ONLY) {
+      const localOff = readSettings().enabledPlugins || {};
+      for (const [id, on] of Object.entries(fragment.enabledPlugins || {})) {
+        if (on && localOff[id] !== false && !installedIds.has(id))
+          plan.push({ what: `install ${id}`, args: ["plugin", "install", id, ...scopeArgs] });
+      }
+    }
   }
 }
 for (const step of plan) {
@@ -196,7 +238,8 @@ if (memoNext !== memoNow) {
 
 if (CHECK) {
   if (HOOK) {
-    if (diffs.length) hookMessage(`kibeen-skills 설정과 다름 (${summary()}). 확인: node "${SELF}" --dry-run`);
+    if (diffs.length)
+      hookMessage(`kibeen-skills 설정과 다름 [${SCOPE}] (${summary()}). 확인: node "${SELF}"${SCOPE === "project" ? " --scope project" : ""} --dry-run`);
   } else {
     console.log(diffs.length ? `${diffs.length} item(s) differ:\n` + diffs.map(d => "  " + d).join("\n") : "In sync.");
   }
@@ -212,7 +255,7 @@ if (!DRY && report.length) {
 }
 if (HOOK && !DRY && diffs.length) {
   hookMessage(
-    `kibeen-skills 설정을 자동 적용했습니다 (${summary()}${failures ? `, 실패 ${failures}건` : ""}). ` +
+    `kibeen-skills 설정을 자동 적용했습니다 [${SCOPE}] (${summary()}${failures ? `, 실패 ${failures}건` : ""}). ` +
       `새로 켠 플러그인은 다음 세션부터 쓸 수 있습니다. 되돌리기: ${backupPath || "백업 없음"}`,
   );
 }

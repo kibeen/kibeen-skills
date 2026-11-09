@@ -51,6 +51,11 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
    설치되지 않은 플러그인은 다음 Claude Code 시작 때 자동으로 받는다. 그 머신에서 `false` 로 꺼 둔 플러그인은 다시 켜지 않는다.
    플러그인은 켜지 않고 정리와 마켓플레이스 선언만 하려면 `--marketplaces-only`.
 
+**프로젝트 범위**: 한 프로젝트에만 적용하려면 그 프로젝트 폴더에서 `claude plugin install kibeen-skills@kibeen-skills --scope project`.
+동기화 훅이 이를 알아보고 `<프로젝트>/.claude/settings.json` 과 `<프로젝트>/.claude/CLAUDE.md` 만 바꾼다(사용자 설정은 그대로).
+프로젝트 설정의 플러그인은 시작할 때 자동으로 받아지지 않으므로, 스크립트가 `--scope project` 로 직접 추가·설치한다.
+수동 실행: `node scripts/apply-settings.mjs --scope project --project-dir <프로젝트>`.
+
 목록을 바꾸려면 `settings/claude-settings.json` 을 고쳐 push 하고, 각 머신에서 `git pull` 후 `apply-settings.mjs` 를 다시 실행한다.
 도구를 없앨 때는 목록에서 지우고 `retired` 에 추가해야 이미 설치한 머신에서도 정리된다.
 
