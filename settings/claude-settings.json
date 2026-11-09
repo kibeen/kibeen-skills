@@ -34,13 +34,6 @@
         "repo": "JuliusBrussee/caveman"
       },
       "autoUpdate": true
-    },
-    "repomix": {
-      "source": {
-        "source": "github",
-        "repo": "yamadashy/repomix"
-      },
-      "autoUpdate": true
     }
   },
   "enabledPlugins": {
@@ -58,7 +51,8 @@
       "impeccable",
       "thedotmack",
       "perplexity-mcp-server",
-      "higgsfield"
+      "higgsfield",
+      "repomix"
     ],
     "plugins": [
       "frontend-design@claude-plugins-official",

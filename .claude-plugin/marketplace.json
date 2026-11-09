@@ -13,36 +13,6 @@
       "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치)"
     },
     {
-      "name": "find-skills",
-      "source": {
-        "source": "github",
-        "repo": "vercel-labs/skills",
-        "sha": "d3701c11b1101251af14c9d148f026e1a47ebe17"
-      },
-      "description": "설치할 만한 에이전트 스킬을 찾아 주는 스킬. 업스트림: vercel-labs/skills",
-      "homepage": "https://github.com/vercel-labs/skills",
-      "strict": false,
-      "skills": [
-        "./skills/find-skills"
-      ]
-    },
-    {
-      "name": "mcp-builder",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/anthropics/skills.git",
-        "path": "skills/mcp-builder",
-        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
-      },
-      "description": "MCP 서버 설계·구현 가이드 스킬. 업스트림: anthropics/skills",
-      "license": "Apache-2.0",
-      "homepage": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
       "name": "superpowers-lab",
       "source": {
         "source": "github",
