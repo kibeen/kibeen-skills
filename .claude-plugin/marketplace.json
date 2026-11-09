@@ -1,0 +1,8 @@
+{
+  "name": "kibeen-skills",
+  "owner": { "name": "Jung Kibeen" },
+  "metadata": {
+    "description": "kibeen 개인 Claude Code 스킬·에이전트 마켓플레이스"
+  },
+  "plugins": []
+}
