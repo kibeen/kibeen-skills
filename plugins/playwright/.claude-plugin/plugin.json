@@ -1,0 +1,7 @@
+{
+  "name": "playwright",
+  "version": "1.0.0",
+  "description": "Microsoft Playwright MCP 서버 (@playwright/mcp 0.0.84) — 브라우저 탐색, 클릭, 입력, 스냅샷, 스크린샷",
+  "author": { "name": "Jung Kibeen" },
+  "license": "Apache-2.0"
+}

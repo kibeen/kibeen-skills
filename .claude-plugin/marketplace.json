@@ -4,5 +4,25 @@
   "metadata": {
     "description": "kibeen 개인 Claude Code 스킬·에이전트 마켓플레이스"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "autorag",
+      "source": {
+        "source": "github",
+        "repo": "Marker-Inc-Korea/AutoRAG",
+        "sha": "18b5e832c5c47024c11d450f62d0cc4d6937d6e8"
+      },
+      "description": "AutoRAG 로컬 문서 사서 스킬 4종 (autorag, autorag-setup, autorag-lite-setup, autorag-doctor). 업스트림: Marker-Inc-Korea/AutoRAG",
+      "version": "2026.11.08",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/Marker-Inc-Korea/AutoRAG",
+      "strict": false,
+      "skills": ["./skills/"]
+    },
+    {
+      "name": "playwright",
+      "source": "./plugins/playwright",
+      "description": "Microsoft Playwright MCP 서버 (@playwright/mcp 0.0.84)"
+    }
+  ]
 }
