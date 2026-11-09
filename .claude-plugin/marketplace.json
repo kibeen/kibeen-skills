@@ -54,38 +54,6 @@
       "homepage": "https://github.com/obra/superpowers-lab"
     },
     {
-      "name": "canvas-design",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/anthropics/skills.git",
-        "path": "skills/canvas-design",
-        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
-      },
-      "description": "포스터·아트워크 등 시각 디자인 스킬. 업스트림: anthropics/skills",
-      "license": "Apache-2.0",
-      "homepage": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
-      "name": "algorithmic-art",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/anthropics/skills.git",
-        "path": "skills/algorithmic-art",
-        "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579"
-      },
-      "description": "p5.js 제너러티브 아트 스킬. 업스트림: anthropics/skills",
-      "license": "Apache-2.0",
-      "homepage": "https://github.com/anthropics/skills/tree/main/skills/algorithmic-art",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
       "name": "content-research-writer",
       "source": {
         "source": "github",
@@ -97,27 +65,6 @@
       "strict": false,
       "skills": [
         "./content-research-writer"
-      ]
-    },
-    {
-      "name": "tapestry",
-      "source": {
-        "source": "github",
-        "repo": "michalparkola/tapestry-skills",
-        "sha": "80e1dc56df74d1cb849ad649c7ead9756e7929bb"
-      },
-      "description": "Tapestry 생산성 스킬 7종 (learn-this, ship-learn-next, youtube-transcript, article-extractor, scrum-sage, session-log, unblock-action). 업스트림: michalparkola/tapestry-skills",
-      "license": "MIT",
-      "homepage": "https://github.com/michalparkola/tapestry-skills",
-      "strict": false,
-      "skills": [
-        "./learn-this",
-        "./ship-learn-next",
-        "./youtube-transcript",
-        "./article-extractor",
-        "./scrum-sage",
-        "./session-log",
-        "./unblock-action"
       ]
     }
   ],

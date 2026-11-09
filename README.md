@@ -91,12 +91,9 @@ claude plugin install <이름>@kibeen-skills
 | 이름 | 내용 | 여기에 두는 이유 | 업스트림 |
 |---|---|---|---|
 | `mcp-builder` | MCP 서버 설계·구현 가이드 스킬 | 원본은 여러 스킬 묶음 단위 | [anthropics/skills](https://github.com/anthropics/skills) `skills/mcp-builder` |
-| `canvas-design` | 포스터·아트워크 시각 디자인 스킬 | 위와 같음 | [anthropics/skills](https://github.com/anthropics/skills) `skills/canvas-design` |
-| `algorithmic-art` | p5.js 제너러티브 아트 스킬 | 위와 같음 | [anthropics/skills](https://github.com/anthropics/skills) `skills/algorithmic-art` |
 | `superpowers-lab` | superpowers 실험 스킬 4종 | 원본에 마켓플레이스 없음 | [obra/superpowers-lab](https://github.com/obra/superpowers-lab) |
 | `find-skills` | 설치할 만한 스킬을 찾아 주는 스킬 | 원본에 마켓플레이스 없음 | [vercel-labs/skills](https://github.com/vercel-labs/skills) |
 | `content-research-writer` | 리서치·인용·개요 피드백 글쓰기 스킬. 라이선스 표기 없음 | 원본에 마켓플레이스 없음 | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) |
-| `tapestry` | 생산성 스킬 7종 (learn-this, ship-learn-next, youtube-transcript 등) | 원본에 마켓플레이스 없음 | [michalparkola/tapestry-skills](https://github.com/michalparkola/tapestry-skills) |
 
 현재 고정 커밋은 `.claude-plugin/marketplace.json` 의 각 `source.sha` 에 있다.
 
@@ -111,7 +108,7 @@ claude plugin install <이름>@kibeen-skills
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요).
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`.
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. `repomix` 처럼 경로가 깊은 레포는
