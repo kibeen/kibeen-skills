@@ -16,6 +16,9 @@ kibeen 개인 Claude Code 플러그인 마켓플레이스 (private).
 | `gsd-core` | GSD Core (구 get-shit-done). 스펙 주도 개발 스킬 72종 + 훅, `/gsd-core:gsd-<명령>` | [open-gsd/gsd-core](https://github.com/open-gsd/gsd-core), `6559d13` |
 | `taste-skill` | 프런트엔드 디자인 품질 스킬 (`design-taste-frontend`) | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill), `f6b7657` |
 | `mcp-builder` | MCP 서버 설계·구현 가이드 스킬 | [anthropics/skills](https://github.com/anthropics/skills), `2c5958e` |
+| `superpowers` | TDD·디버깅·계획·코드 리뷰 개발 방법론 스킬 모음 + SessionStart 훅 | [obra/superpowers](https://github.com/obra/superpowers), `22f0b46` |
+| `ui-ux-pro-max` | UI/UX 디자인 인텔리전스 스킬 7종 (스타일·팔레트·폰트·차트 DB) | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), `4f2dbb6` |
+| `caveman` | 응답 압축 모드. SessionStart·SubagentStart·UserPromptSubmit·SessionEnd 훅으로 항상 켜짐 (Node 필요) | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman), `3dc497a` |
 
 ```
 /plugin install <이름>@kibeen-skills

@@ -81,6 +81,39 @@
       "skills": [
         "./skills/mcp-builder"
       ]
+    },
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers",
+        "sha": "22f0b463e7a5e579904dd6211a520321035526f7"
+      },
+      "description": "TDD, 디버깅, 계획·실행, 코드 리뷰 등 개발 방법론 스킬 모음과 SessionStart 훅. 업스트림: obra/superpowers",
+      "license": "MIT",
+      "homepage": "https://github.com/obra/superpowers"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+        "sha": "4f2dbb67e64969a9a30ab00742f2d55d66ddec2b"
+      },
+      "description": "UI/UX 디자인 인텔리전스 스킬 7종 (스타일·팔레트·폰트·차트·스택 DB). 업스트림: nextlevelbuilder/ui-ux-pro-max-skill",
+      "license": "MIT",
+      "homepage": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    {
+      "name": "caveman",
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman",
+        "sha": "3dc497a7f858c774d6e15b25e8c6120ef3a0eda8"
+      },
+      "description": "응답을 짧게 압축하는 caveman 모드 스킬과 세션·프롬프트 훅. 업스트림: JuliusBrussee/caveman",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/JuliusBrussee/caveman"
     }
   ]
 }
