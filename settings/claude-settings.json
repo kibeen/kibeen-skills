@@ -21,13 +21,6 @@
       },
       "autoUpdate": true
     },
-    "perplexity-mcp-server": {
-      "source": {
-        "source": "github",
-        "repo": "perplexityai/modelcontextprotocol"
-      },
-      "autoUpdate": true
-    },
     "taste-skill": {
       "source": {
         "source": "github",
@@ -70,7 +63,8 @@
       "gsd-core",
       "ui-ux-pro-max-skill",
       "impeccable",
-      "thedotmack"
+      "thedotmack",
+      "perplexity-mcp-server"
     ],
     "plugins": [
       "frontend-design@claude-plugins-official",
