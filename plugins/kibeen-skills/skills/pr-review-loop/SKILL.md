@@ -1,6 +1,6 @@
 ---
 name: pr-review-loop
-description: 기능 구현을 마친 뒤, 오래 걸리는 검증(PoC 평가, 벤치마크, 배포 테스트 등)을 돌리기 전에 쓰는 절차. draft PR 생성 → 리뷰 서브에이전트 리뷰와 반영을 Approve 까지 반복(최대 3회) → CI 통과까지 수정 반복 → PoC 평가와 결과 코멘트 → 사용자가 폐기로 판정하면 PR 정리. "구현 끝났어", "검증 전에 리뷰", "PR 올리고 평가" 같은 요청에 쓴다.
+description: 기능 구현을 마친 뒤, 오래 걸리는 검증(PoC 평가, 벤치마크, 배포 테스트 등)을 돌리기 전에 쓰는 절차. draft PR 생성 → 리뷰 서브에이전트 리뷰와 반영을 self-approve 까지 반복(최대 3회) → CI 통과까지 수정 반복 → PoC 평가와 결과 코멘트 → 사용자가 폐기로 판정하면 PR 정리. "구현 끝났어", "검증 전에 리뷰", "PR 올리고 평가" 같은 요청에 쓴다.
 ---
 
 # PR 리뷰 루프
@@ -32,13 +32,13 @@ gh pr create --draft --base <base> --title "<제목>" --body-file <본문.md>
 1. 서브에이전트 `pr-reviewer` 를 띄운다. 프롬프트에는 저장소, PR 번호, 라운드 N, (N≥2 면) 직전 리뷰 코멘트와
    반영 코멘트 URL 만 준다. 내 결론이나 변명은 덧붙이지 않는다(독립 리뷰가 목적이다).
 2. 리뷰어가 PR 에 리뷰 코멘트(step=review)를 올리고 `VERDICT: APPROVE` 또는 `VERDICT: CHANGES_REQUESTED` 를 돌려준다.
-   GitHub 는 본인 PR 을 Approve 할 수 없으므로 Approve 는 이 판정으로 기록한다.
+   이 판정이 self-approve 다. GitHub PR 의 승인(Approve) 상태는 바꾸지 않는다.
 3. `CHANGES_REQUESTED` 면 Must fix 를 하나씩 고치고 커밋·푸시한다. Should fix 는 고치거나, 안 고치는 이유를 적는다.
    그다음 반영 코멘트(step=fix)를 올린다: 항목마다 `고침 → <커밋>` 또는 `안 고침 → <이유>`.
 4. 다음 라운드로 간다. 리뷰어는 반영을 하나씩 확인하고 새 diff 를 본다.
 
-- `APPROVE` 면 5단계로 간다.
-- 3회 안에 Approve 가 안 나면 멈춘다. 남은 Must fix 와 쟁점을 사용자에게 보고하고 지시를 기다린다.
+- `APPROVE`(self-approve) 면 5단계로 간다.
+- 3회 안에 self-approve 가 안 나면 멈춘다. 남은 Must fix 와 쟁점을 사용자에게 보고하고 지시를 기다린다.
 
 ## 5~6. CI 루프 (통과할 때까지)
 1. 레포의 CI 실행 규칙을 먼저 확인한다(레포 `CLAUDE.md`, 레포 전용 스킬). draft 에서 돌지 않거나 라벨이 필요한 레포는

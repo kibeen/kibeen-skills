@@ -82,7 +82,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 | 구성 | 종류 | 하는 일 |
 |---|---|---|
-| `pr-review-loop` | 스킬 | 구현 뒤 오래 걸리는 검증 전에: draft PR → 리뷰 서브에이전트 리뷰·반영(Approve 까지, 최대 3회) → CI 통과까지 수정 → PoC 평가 결과 코멘트 → 사용자가 폐기 판정하면 PR 닫고 브랜치 삭제 |
+| `pr-review-loop` | 스킬 | 구현 뒤 오래 걸리는 검증 전에: draft PR → 리뷰 서브에이전트 리뷰·반영(self-approve 까지, 최대 3회) → CI 통과까지 수정 → PoC 평가 결과 코멘트 → 사용자가 폐기 판정하면 PR 닫고 브랜치 삭제 |
 | `pr-reviewer` | 서브에이전트 | `pr-review-loop` 의 독립 리뷰어. 코드 결함과 PoC 평가 계획을 보고 PR 코멘트로 VERDICT 를 남긴다 |
 | 동기화 훅 | SessionStart 훅 | 이 머신을 `settings/` 에 맞춘다(설치·제거·답변 지침) |
 
