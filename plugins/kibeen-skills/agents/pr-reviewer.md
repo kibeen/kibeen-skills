@@ -1,6 +1,6 @@
 ---
 name: pr-reviewer
-description: pr-review-loop 스킬의 독립 리뷰어. draft PR 의 코드와 PoC 평가 계획을 리뷰하고, 결과를 PR 코멘트로 올린 뒤 VERDICT: APPROVE 또는 CHANGES_REQUESTED 를 돌려준다. 코드를 고치지 않는다.
+description: "pr-review-loop 스킬의 독립 리뷰어. draft PR 의 코드와 PoC 평가 계획을 리뷰하고, 결과를 PR 코멘트로 올린 뒤 VERDICT: APPROVE 또는 CHANGES_REQUESTED 를 돌려준다. 코드를 고치지 않는다."
 tools: Bash, Read, Grep, Glob
 ---
 
