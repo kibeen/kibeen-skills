@@ -27,7 +27,7 @@ const BODY_LIMIT = 3000;
 // Polling faster than this only burns API quota; the tests lower it to keep themselves short.
 const MIN_INTERVAL = Number(process.env.PR_MERGE_WATCH_MIN_INTERVAL) || 15;
 
-const QUERY = `
+export const QUERY = `
 query($owner:String!,$name:String!,$number:Int!){
   viewer{login}
   repository(owner:$owner,name:$name){
@@ -49,9 +49,9 @@ query($owner:String!,$name:String!,$number:Int!){
         ... on AutoRebaseEnabledEvent{actor{login}}
         ... on AutoMergeDisabledEvent{actor{login} reasonCode}
       }}
-      reviews(last:100){nodes{url state body submittedAt author{__typename login}}}
+      reviews(last:100){nodes{id url state body submittedAt author{__typename login}}}
       reviewThreads(last:100){nodes{id isResolved isOutdated path line comments(last:6){nodes{url body createdAt publishedAt author{__typename login}}}}}
-      comments(last:100){pageInfo{hasPreviousPage startCursor} nodes{url body createdAt author{__typename login}}}
+      comments(last:100){pageInfo{hasPreviousPage startCursor} nodes{id url body createdAt author{__typename login}}}
       commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){pageInfo{hasNextPage endCursor} nodes{...Ctx}}}}}}
     }
   }
@@ -74,10 +74,10 @@ fragment Ctx on StatusCheckRollupContext{
   ... on StatusContext{context state targetUrl createdAt isRequired(pullRequestNumber:$number)}
 }`;
 
-const OLDER_COMMENTS_QUERY = `
+export const OLDER_COMMENTS_QUERY = `
 query($owner:String!,$name:String!,$number:Int!,$before:String!){
   repository(owner:$owner,name:$name){pullRequest(number:$number){
-    comments(last:100,before:$before){pageInfo{hasPreviousPage startCursor} nodes{url body createdAt author{__typename login}}}
+    comments(last:100,before:$before){pageInfo{hasPreviousPage startCursor} nodes{id url body createdAt author{__typename login}}}
   }}
 }`;
 
@@ -88,9 +88,10 @@ export function parseMarker(body) {
   const m = MARKER_RE.exec(body || "");
   if (!m) return null;
   const out = {};
-  for (const pair of m[1].split(/\s+/)) {
+  // Lists are written `a,b`; a hand-typed `a, b` or a quoted value must not cut the list short.
+  for (const pair of m[1].replace(/\s*,\s*(?!(?:step|round|sha|until|mode|ask)=)/g, ",").split(/\s+/)) {
     const i = pair.indexOf("=");
-    if (i > 0) out[pair.slice(0, i)] = pair.slice(i + 1);
+    if (i > 0) out[pair.slice(0, i)] = pair.slice(i + 1).replace(/^["']|["']$/g, "");
   }
   return out.step ? out : null;
 }
@@ -181,6 +182,9 @@ export function summarizeChecks(checks, requiredContexts = [], { skipOk = false 
  *   of our last `step=feedback` marker comment.
  * - Whatever a person wrote before their own latest approval is settled. Comments submitted
  *   with the approval itself ("approve with nits") carry its timestamp and stay open.
+ * - An item the agent means to decline is parked in `awaitingUser` instead: the reply needs the
+ *   user's approval first. Our latest `step=feedback` marker lists those ids in `ask`; an item
+ *   stays parked until we answer it, the reviewer adds to it, or a later marker drops the id.
  */
 export function collectFeedback(pr, viewer) {
   // "Ours" is the account running gh and the PR author (normally the same account).
@@ -192,47 +196,56 @@ export function collectFeedback(pr, viewer) {
     const m = ours(c.author?.login) ? parseMarker(c.body) : null;
     if (m) markers.push({ ...m, at: c.createdAt, url: c.url });
   }
-  const anchor = Math.max(0, ...markers.filter(m => m.step === "feedback").map(m => ts(m.until)));
+  const recorded = markers.filter(m => m.step === "feedback");
+  const anchor = Math.max(0, ...recorded.map(m => ts(m.until)));
+  const ask = new Set((recorded[recorded.length - 1]?.ask || "").split(",").map(id => id.replace(/["']/g, "")).filter(Boolean));
   const approvedAt = {};
   for (const r of pr.reviews?.nodes || []) {
     if (r.state === "APPROVED") approvedAt[r.author?.login] = Math.max(approvedAt[r.author?.login] || 0, ts(r.submittedAt));
   }
-  const settled = (login, at) => at <= anchor || at < (approvedAt[login] || 0);
+  const waived = (login, at) => at < (approvedAt[login] || 0);
   const who = a => ({ author: a?.login || "ghost", ...(a?.__typename === "Bot" ? { bot: true } : {}) });
   const items = [];
+  const awaitingUser = [];
   let until = 0;
+  // Open items wake the agent. An item already covered by a feedback marker is done, unless that
+  // marker parked it for the user (`ask`).
+  const sort = (item, at) => {
+    if (at > anchor) { items.push(item); until = Math.max(until, at); }
+    else if (ask.has(item.id)) awaitingUser.push(item);
+  };
 
   for (const r of pr.reviews?.nodes || []) {
     const at = ts(r.submittedAt);
     if (ours(r.author?.login) || r.state === "PENDING" || r.state === "DISMISSED") continue;
     if (r.state !== "CHANGES_REQUESTED" && !(r.body || "").trim()) continue;
-    if (r.state !== "APPROVED" && settled(r.author?.login, at)) continue;
-    if (r.state === "APPROVED" && at <= anchor) continue;
-    items.push({ kind: "review", ...who(r.author), state: r.state, url: r.url, body: trim(r.body) });
-    until = Math.max(until, at);
+    if (r.state !== "APPROVED" && waived(r.author?.login, at)) continue;
+    sort({ kind: "review", id: r.id, ...who(r.author), state: r.state, url: r.url, body: trim(r.body) }, at);
   }
   for (const t of pr.reviewThreads?.nodes || []) {
     const cs = t.comments?.nodes || [];
     const last = cs[cs.length - 1];
     if (t.isResolved || !last || ours(last.author?.login)) continue;
     const at = ts(last.publishedAt || last.createdAt);
-    if (at < (approvedAt[last.author?.login] || 0)) continue;
-    items.push({
-      kind: "thread", ...who(last.author), threadId: t.id, path: t.path, line: t.line, ...(t.isOutdated ? { outdated: true } : {}),
+    if (waived(last.author?.login, at)) continue;
+    const item = {
+      kind: "thread", id: t.id, ...who(last.author), threadId: t.id, path: t.path, line: t.line, ...(t.isOutdated ? { outdated: true } : {}),
       url: last.url, comments: cs.map(c => ({ author: c.author?.login || "ghost", body: trim(c.body) })),
-    });
-    until = Math.max(until, at);
+    };
+    // A thread stays open until we answer it, whatever the marker says, unless it is parked.
+    if (ask.has(t.id) && at <= anchor) awaitingUser.push(item);
+    else { items.push(item); until = Math.max(until, at); }
   }
   for (const c of pr.comments?.nodes || []) {
     const at = ts(c.createdAt);
     if (ours(c.author?.login) || c.author?.__typename === "Bot") continue;
-    if (settled(c.author?.login, at)) continue;
-    items.push({ kind: "comment", ...who(c.author), url: c.url, body: trim(c.body) });
-    until = Math.max(until, at);
+    if (waived(c.author?.login, at)) continue;
+    sort({ kind: "comment", id: c.id, ...who(c.author), url: c.url, body: trim(c.body) }, at);
   }
   return {
     until: until ? new Date(until).toISOString().replace(".000Z", "Z") : null,
     items,
+    awaitingUser,
     markers,
   };
 }
@@ -361,7 +374,9 @@ export function timedEvents(s, { noAuto = false } = {}, since, now, graceMs) {
   const ev = [];
   if (held("ci_not_started", open && (s.checks.missingRequired.length > 0 || s.checks.skipped.length > 0))) ev.push("ci_not_started");
   // Everything we can see is green and auto-merge is on, yet GitHub has not merged (a merge queue is a normal wait).
-  if (held("stuck", open && !noAuto && s.autoMerge.enabled && !s.pr.inMergeQueue && reviewOk(s) && checksOk(s))) ev.push("stuck");
+  // A thread that must be resolved and waits for the user's approval of the reply explains the wait.
+  const parked = s.rules.threadResolutionRequired && s.feedback.awaitingUser.some(i => i.kind === "thread");
+  if (held("stuck", open && !noAuto && s.autoMerge.enabled && !s.pr.inMergeQueue && reviewOk(s) && checksOk(s) && !parked)) ev.push("stuck");
   return ev;
 }
 
@@ -448,8 +463,10 @@ export function buildSnapshot(data, rulesets, extraContexts = [], { skipOk = fal
 export function hint(s, { noAuto = false, noReview = false } = {}) {
   const names = xs => xs.slice(0, 5).join(", ") + (xs.length > 5 ? ` 외 ${xs.length - 5}개` : "");
   switch (s.event) {
-    case "merged": return `머지됨 (${s.pr.mergeCommit?.slice(0, 12) || "merge commit 미확인"}). 절차를 끝낸다.`;
-    case "closed": return "머지 없이 닫혔다. 사용자에게 보고한다.";
+    case "merged": return `머지됨 (${s.pr.mergeCommit?.slice(0, 12) || "merge commit 미확인"}). 절차를 끝낸다.`
+      + (s.feedback.awaitingUser.length ? ` 올리지 않은 거절 답글 ${s.feedback.awaitingUser.length}건이 남아 있다(승인 대기 또는 답하지 않기로 함).` : "");
+    case "closed": return "머지 없이 닫혔다. 사용자에게 보고한다."
+      + (s.feedback.awaitingUser.length ? ` 올리지 않은 거절 답글 ${s.feedback.awaitingUser.length}건이 남아 있다(승인 대기 또는 답하지 않기로 함).` : "");
     case "hold": return `사용자 결정을 기다리는 보류가 열려 있다 (${s.markers.hold}). 그 질문의 답부터 받는다.`
       + (s.autoMerge.enabled ? " auto-merge 가 켜져 있다: 먼저 끈다(gh pr merge --disable-auto)." : "");
     case "draft": return "아직 draft 다. 사용자가 채택한 뒤 gh pr ready 로 연다.";
@@ -477,6 +494,7 @@ export function hint(s, { noAuto = false, noReview = false } = {}) {
       }
       if (noAuto && !noReview && s.review.decision !== "REVIEW_REQUIRED" && !s.review.approvals.length && !s.review.staleApprovals.length) parts.push("사람의 Approve 대기 (auto-merge 없이 승인 뒤 직접 머지)");
       if (noReview && !parts.length) parts.push("머지 가능 상태 대기 (리뷰 없이, 체크 통과 뒤 직접 머지)");
+      if (s.feedback.awaitingUser.length) parts.push(`거절 답글 ${s.feedback.awaitingUser.length}건이 사용자 승인 대기(답하지 않기로 한 스레드 포함)`);
       return parts.join(" / ") || `기다릴 조건이 보이지 않는다 (mergeStateStatus=${s.pr.mergeStateStatus}).`;
     }
     default: return "";

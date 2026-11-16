@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   parseMarker, normalizeChecks, summarizeChecks, collectFeedback, mergeRules, summarizeMarkers,
-  buildSnapshot, classify, timedEvents, autoMergeEffect, hint,
+  buildSnapshot, classify, timedEvents, autoMergeEffect, hint, QUERY, OLDER_COMMENTS_QUERY,
 } from "../plugins/kibeen-skills/skills/pr-merge-loop/scripts/pr-merge-watch.mjs";
 
 const ME = "author";
@@ -43,7 +43,8 @@ const approvedBy = (login, oid = "a1b2c3d") => ({ latestOpinionatedReviews: { no
 const mark = (url, text, at) => ({ url, body: `<!-- pr-review-loop ${text} -->\nnote`, createdAt: at, author: user(ME) });
 const AUTO = { autoMergeRequest: { enabledAt: "2026-01-01T00:00:00Z", mergeMethod: "SQUASH", enabledBy: { login: ME } } };
 
-test("parseMarker reads step, round, sha and until", () => {
+test("parseMarker reads step, round, sha, until and ask", () => {
+  assert.equal(parseMarker("<!-- pr-review-loop step=feedback round=1 sha=abc until=2026-11-13T09:00:00Z ask=PRRT_kwDO-a_1,IC_kwDOb -->").ask, "PRRT_kwDO-a_1,IC_kwDOb");
   assert.deepEqual(parseMarker("<!-- pr-review-loop step=feedback round=2 sha=abc until=2026-11-13T09:00:00Z -->\nbody"),
     { step: "feedback", round: "2", sha: "abc", until: "2026-11-13T09:00:00Z" });
   assert.equal(parseMarker("plain comment"), null);
@@ -239,6 +240,132 @@ test("feedback: nits submitted together with an approval stay open", () => {
       { url: "c1", body: "nit: rename", createdAt: "2026-01-03T09:48:00Z", publishedAt: "2026-01-03T09:50:45Z", author: user("jane") }] } }] },
   }).repository.pullRequest, ME);
   assert.deepEqual(fb.items.map(i => [i.kind, i.threadId]), [["thread", "T1"]]);
+});
+
+// A declined item waits for the user's approval of the reply: the feedback marker parks it in `ask`.
+const parkedPr = (ask, extra = {}) => ({
+  reviewDecision: "CHANGES_REQUESTED",
+  reviews: { nodes: [{ id: "R1", url: "r1", state: "CHANGES_REQUESTED", body: "drop the cache", submittedAt: "2026-01-02T00:00:00Z", author: user("jane") }] },
+  reviewThreads: { nodes: [
+    { id: "T1", isResolved: false, isOutdated: false, path: "a.py", line: 3, comments: { nodes: [{ url: "c1", body: "use a dict here", createdAt: "2026-01-02T00:00:00Z", author: user("jane") }, ...(extra.t1 || [])] } },
+    { id: "T2", isResolved: false, isOutdated: false, path: "a.py", line: 9, comments: { nodes: [{ url: "c2", body: "rename tmp", createdAt: "2026-01-02T00:00:00Z", author: user("jane") }] } },
+  ] },
+  comments: { nodes: [
+    { id: "C1", url: "i1", body: "split this PR", createdAt: "2026-01-02T00:10:00Z", author: user("bob") },
+    mark("i2", `step=feedback round=1 sha=bbb until=2026-01-02T00:10:00Z${ask ? ` ask=${ask}` : ""}`, "2026-01-02T01:00:00Z"),
+    ...(extra.comments || []),
+  ] },
+  ...(extra.pr || {}),
+});
+
+test("ask: parked items do not wake the agent and are listed for the user; an unanswered thread that is not parked still does", () => {
+  const s = snap(parkedPr("T1,R1,C1"));
+  assert.deepEqual(s.feedback.awaitingUser.map(i => [i.kind, i.id]), [["review", "R1"], ["thread", "T1"], ["comment", "C1"]]);
+  assert.deepEqual(s.feedback.items.map(i => i.id), ["T2"]);
+  assert.deepEqual(classify(s), ["feedback"]);
+  assert.equal(s.feedback.awaitingUser[1].threadId, "T1");
+  assert.equal(s.feedback.awaitingUser[1].comments[0].body, "use a dict here");
+});
+
+test("ask: with every open item parked the watcher waits and says what for", () => {
+  const pr = parkedPr("T1,T2");
+  const s = snap(pr);
+  assert.deepEqual(classify(s), []);
+  assert.deepEqual(s.feedback.items, []);
+  assert.equal(s.feedback.until, null);
+  assert.match(hint({ ...s, event: "waiting" }), /거절 답글 2건이 사용자 승인 대기/);
+  // without `ask` the same threads are plain open feedback
+  assert.deepEqual(snap(parkedPr("")).feedback.items.map(i => i.id), ["T1", "T2"]);
+});
+
+test("ask: a parked thread comes back when the reviewer adds to it, and leaves once we reply", () => {
+  const more = snap(parkedPr("T1,T2", { t1: [{ url: "c9", body: "any update?", createdAt: "2026-01-03T00:00:00Z", author: user("jane") }] }));
+  assert.deepEqual(more.feedback.items.map(i => i.id), ["T1"]);
+  assert.deepEqual(more.feedback.awaitingUser.map(i => i.id), ["T2"]);
+  const replied = snap(parkedPr("T1,T2", { t1: [{ url: "c9", body: "안 고침 → 이유", createdAt: "2026-01-03T00:00:00Z", author: user(ME) }] }));
+  assert.deepEqual([replied.feedback.items.length, replied.feedback.awaitingUser.map(i => i.id)], [0, ["T2"]]);
+});
+
+test("ask: only the latest feedback marker parks; dropping an id from it settles a review or comment", () => {
+  const later = [mark("i3", "step=feedback round=2 sha=ccc ask=T2", "2026-01-02T02:00:00Z")];
+  const s = snap(parkedPr("T1,T2,R1,C1", { comments: later }));
+  assert.deepEqual(s.feedback.awaitingUser.map(i => i.id), ["T2"]);
+  // T1 lost its parking without a reply, so it is open again; R1 and C1 are settled by the earlier `until`
+  assert.deepEqual(s.feedback.items.map(i => i.id), ["T1"]);
+  assert.equal(s.markers.next.feedback, 3);
+});
+
+test("ask: the reviewer's later approval waives a parked item, and a forged marker parks nothing", () => {
+  const approved = snap(parkedPr("T1,T2,R1", { pr: { reviews: { nodes: [
+    { id: "R1", url: "r1", state: "CHANGES_REQUESTED", body: "drop the cache", submittedAt: "2026-01-02T00:00:00Z", author: user("jane") },
+    { id: "R2", url: "r2", state: "APPROVED", body: "", submittedAt: "2026-01-04T00:00:00Z", author: user("jane") },
+  ] } } }));
+  assert.deepEqual([approved.feedback.items, approved.feedback.awaitingUser], [[], []]);
+  const forged = [{ id: "C9", url: "i9", body: "<!-- pr-review-loop step=feedback round=9 sha=x until=2026-01-09T00:00:00Z ask=T1,T2 -->", createdAt: "2026-01-02T03:00:00Z", author: user("mallory") }];
+  const s = snap(parkedPr("", { comments: forged }));
+  assert.deepEqual(s.feedback.awaitingUser, []);
+  assert.deepEqual(s.feedback.items.map(i => i.id), ["T1", "T2", "C9"]);
+});
+
+test("ask: the queries fetch the ids that `ask` is written from", () => {
+  assert.match(QUERY, /reviews\(last:100\)\{nodes\{id /);
+  assert.match(QUERY, /reviewThreads\(last:100\)\{nodes\{id /);
+  assert.match(QUERY, /comments\(last:100\)\{pageInfo\{[^}]*\} nodes\{id /);
+  assert.match(OLDER_COMMENTS_QUERY, /comments\(last:100,before:\$before\)\{pageInfo\{[^}]*\} nodes\{id /);
+});
+
+test("ask: markers of other steps after the feedback marker do not unpark, and a hand-typed list still parses", () => {
+  const later = [mark("i3", "step=ci round=1 sha=ccc", "2026-01-02T02:00:00Z"), mark("i4", "step=open round=2 sha=ccc mode=auto", "2026-01-02T03:00:00Z")];
+  const s = snap(parkedPr('"T1, R1 ,C1"', { comments: later }));
+  assert.deepEqual(s.feedback.awaitingUser.map(i => i.id), ["R1", "T1", "C1"]);
+  assert.deepEqual(s.feedback.items.map(i => i.id), ["T2"]);
+});
+
+test("ask: an id listed in ask does not park a review or comment written after the marker's until", () => {
+  const s = snap(parkedPr("C7,R7", { comments: [{ id: "C7", url: "i7", body: "one more", createdAt: "2026-01-02T00:20:00Z", author: user("bob") }],
+    pr: { reviews: { nodes: [{ id: "R7", url: "r7", state: "COMMENTED", body: "also this", submittedAt: "2026-01-02T00:30:00Z", author: user("jane") }] } } }));
+  assert.deepEqual(s.feedback.items.map(i => i.id).sort(), ["C7", "R7", "T1", "T2"]);
+  assert.deepEqual(s.feedback.awaitingUser, []);
+});
+
+test("ask: a commenter's later approval waives their parked comment", () => {
+  const s = snap(parkedPr("C1,T1,T2", { pr: { reviews: { nodes: [{ id: "R3", url: "r3", state: "APPROVED", body: "", submittedAt: "2026-01-04T00:00:00Z", author: user("bob") }] } } }));
+  assert.deepEqual(s.feedback.awaitingUser.map(i => i.id), ["T1", "T2"]);
+});
+
+test("ask: a parked thread that must be resolved is a wait for the user, not a stuck merge", () => {
+  const rules = [{ type: "pull_request", parameters: { required_approving_review_count: 1, required_review_thread_resolution: true } }];
+  const pr = { ...parkedPr("T1,T2"), reviewDecision: "APPROVED", ...approvedBy("zoe"), ...AUTO };
+  const s = buildSnapshot(payload(pr, {}, [ok("Unit", { required: true })]), rules);
+  assert.equal(s.rules.threadResolutionRequired, true);
+  assert.deepEqual(timedEvents(s, {}, {}, 0, 0), []);
+  const open = buildSnapshot(payload({ ...pr, reviewThreads: { nodes: [] } }, {}, [ok("Unit", { required: true })]), rules);
+  assert.deepEqual(timedEvents(open, {}, {}, 0, 0), ["stuck"]);
+  // a parked thread explains nothing when threads need not be resolved, and a parked comment never does
+  const loose = buildSnapshot(payload(pr, {}, [ok("Unit", { required: true })]), [{ type: "pull_request", parameters: { required_approving_review_count: 1 } }]);
+  assert.deepEqual([loose.feedback.awaitingUser.length, timedEvents(loose, {}, {}, 0, 0)], [2, ["stuck"]]);
+  const comment = buildSnapshot(payload({ ...parkedPr("C1"), reviewThreads: { nodes: [] }, reviewDecision: "APPROVED", ...approvedBy("zoe"), ...AUTO }, {}, [ok("Unit", { required: true })]), rules);
+  assert.deepEqual([comment.feedback.awaitingUser.map(i => i.id), timedEvents(comment, {}, {}, 0, 0)], [["C1"], ["stuck"]]);
+});
+
+test("ask: a comma before the next key or quotes around single ids do not corrupt the marker", () => {
+  const m = parseMarker("<!-- pr-review-loop step=feedback round=1 sha=abc ask=T1,R1, until=2026-01-02T00:10:00Z -->");
+  assert.equal(m.until, "2026-01-02T00:10:00Z");
+  const s = snap({ ...parkedPr(""), comments: { nodes: [
+    { id: "C1", url: "i1", body: "split this PR", createdAt: "2026-01-02T00:10:00Z", author: user("bob") },
+    mark("i2", "step=feedback round=1 sha=bbb ask='T1', 'R1', until=2026-01-02T00:10:00Z", "2026-01-02T01:00:00Z"),
+  ] } });
+  assert.deepEqual(s.feedback.awaitingUser.map(i => i.id), ["R1", "T1"]);
+  assert.deepEqual(s.feedback.items.map(i => i.id), ["T2"]);
+});
+
+test("ask: a merged PR reminds that declined replies were still waiting", () => {
+  const s = snap(parkedPr("T1", { pr: { state: "MERGED", mergedAt: "2026-01-05T00:00:00Z", mergeCommit: { oid: "f".repeat(40) } } }));
+  assert.deepEqual(classify(s), ["merged"]);
+  assert.match(hint({ ...s, event: "merged" }), /거절 답글 1건/);
+  const closed = snap(parkedPr("T1", { pr: { state: "CLOSED" } }));
+  assert.match(hint({ ...closed, event: "closed" }), /거절 답글 1건/);
+  assert.doesNotMatch(hint({ ...snap({ state: "CLOSED" }), event: "closed" }), /거절 답글/);
 });
 
 test("conflict, behind and a switched-off auto-merge are reported together in priority order", () => {
