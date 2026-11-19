@@ -39,7 +39,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/pr-merge-watch.mjs" wait <PR> [--repo owner/na
 
 새 세션에서 이어받을 때는 `status` 를 한 번 돌린다.
 - `markers.hold` 가 있으면 그 코멘트의 질문이 아직 열려 있다. 답이 대화에 없으면 사용자에게 다시 묻는다.
-  `markers.last.step` 이 `review`, `fix`, `poc` 면 재평가 중이므로 pr-review-loop 으로 이어간다.
+  `markers.reevaluating` 이 true 면(보류 뒤에 `review`, `fix`, `poc` 표시가 있다) 재평가 중이므로 pr-review-loop 으로 이어간다.
 - `markers.acceptedSha` 가 있으면 채택된 PR 이다. `markers.mode` 가 `auto` 가 아니거나 `autoMerge.enabled` 가 true 면 3단계부터 한다.
   `mode` 가 `auto` 인데 auto-merge 가 꺼져 있으면 `autoMerge.disabledBy` 를 본다. 없으면 켠 적이 없는 것이니 2단계부터 한다.
   있으면 누군가 끈 것이다. 다시 켜지 않고 사용자에게 보고한다.
@@ -222,7 +222,8 @@ hold 코멘트는 질문을 한 줄로 적는다.
    - **바꾸지 않음, 후속 PR**: 선택만 받고 문안 승인을 못 받았으면 문안을 다시 보여 승인받는다. 그때까지 보류를 닫지 않는다
      (open 코멘트도 auto-merge 도 없다). 승인된 문안 그대로 해당 스레드에 답한 뒤에 2단계 표대로 auto-merge 를 다시 켠다.
      open 코멘트(`sha=<지금 head>`, 본문은 `재개: <결정>`)를 올려 보류를 닫고, 3.2 의 4번을 한 뒤 3단계로 돌아간다.
-   - **반영하고 재평가**: pr-review-loop 2단계부터 다시 한다(수정, 리뷰, CI, 평가, 채택 판정). 다시 채택되면 1단계부터 한다.
+   - **반영하고 재평가**: 먼저 `평가 무효: 커밋 <옛 평가 커밋>, 사용자 지시 재평가.` 코멘트(step=poc)를 올리고 pr-review-loop 2단계부터
+     다시 한다(수정, 리뷰, CI 와 평가, 채택 판정). 리뷰 라운드 상한은 새로 3회다. 다시 채택되면 1단계부터 한다.
 
 ## 4. 끝
 `merged` 이벤트가 오거나 직접 머지가 성공하면 사용자에게 보고하고 끝낸다: 머지 커밋(`pr.mergeCommit`), 채택 커밋 뒤에

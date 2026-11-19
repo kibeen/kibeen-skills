@@ -267,6 +267,8 @@ export function summarizeMarkers(markers) {
     // unreviewed: the user chose to merge without a review; the agent merges once checks passed.
     mode: opened ? (["manual", "unreviewed"].includes(opened.mode) ? opened.mode : "auto") : null,
     hold: gate?.step === "hold" ? gate.url : null,
+    // The hold asked whether to re-evaluate and the review loop has run since (its CI comments may come last).
+    reevaluating: gate?.step === "hold" && markers.slice(markers.indexOf(gate) + 1).some(m => ["review", "fix", "poc"].includes(m.step)),
     next: { open: count("open") + 1, hold: count("hold") + 1, ci: count("ci") + 1, feedback: count("feedback") + 1 },
   };
 }

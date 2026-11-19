@@ -85,7 +85,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 | 구성 | 종류 | 하는 일 |
 |---|---|---|
-| `pr-review-loop` | 스킬 | 모든 구현 PR 에, 오래 걸리는 검증이 있으면 그 전에: draft PR → 리뷰 서브에이전트 리뷰·반영(self-approve 까지, 최대 3회) → CI 통과까지 수정 → PoC 평가 결과 코멘트(평가가 없으면 건너뜀) → 사용자에게 결과를 공유하고 채택 여부를 물음 → 채택이면 `pr-merge-loop`, 폐기면 PR 닫고 브랜치 삭제 |
+| `pr-review-loop` | 스킬 | 모든 구현 PR 에, 오래 걸리는 검증이 있으면 그 전에: draft PR → 리뷰 서브에이전트 리뷰·반영(self-approve 까지, 최대 3회) → CI 통과까지의 수정과 PoC 평가를 함께 진행(CI 수정이 평가한 동작을 바꾸면 평가를 중단하고 재리뷰 뒤 다시 잼, 평가가 없으면 CI 만) → 사용자에게 결과를 공유하고 채택 여부를 물음 → 채택이면 `pr-merge-loop`, 폐기면 PR 닫고 브랜치 삭제 |
 | `pr-merge-loop` | 스킬 | 사용자가 채택한 PR 을 머지까지: PR 을 열고(ready) auto-merge 켜기 → 필수 CI 실패 수정 → 리뷰어 코멘트 확인·반영(반영하지 않겠다는 답글만 문안을 사용자에게 보여 승인받은 뒤 게시) → 승인과 CI 통과로 머지되면 종료. 채택 뒤 수정이 평가한 동작을 바꾸면 auto-merge 를 끄고 사용자에게 묻는다 |
 | `pr-merge-watch.mjs` | 스킬 스크립트 | `pr-merge-loop` 의 감시 도구(읽기 전용). `status` 는 PR 상태 한 번, `wait` 는 할 일이 생길 때까지 대기(필수 체크 실패, 새 리뷰 코멘트, base 와 충돌, 머지 완료). `gh pr merge --auto` 가 보호 규칙 없는 브랜치에서 바로 머지하는 경우를 미리 알려 준다 |
 | `pr-reviewer` | 서브에이전트 | `pr-review-loop` 의 독립 리뷰어. 코드 결함과 PoC 평가 계획을 보고 PR 코멘트로 VERDICT 를 남긴다 |

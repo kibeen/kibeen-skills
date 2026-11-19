@@ -500,11 +500,21 @@ test("snapshot exposes what the skill reads: merge methods, accepted sha, review
   assert.deepEqual(s.repo.mergeMethods, ["merge", "squash"]);
   assert.equal(s.repo.defaultMergeMethod, "squash");
   assert.deepEqual(s.markers, {
-    last: { step: "open", round: "1", sha: "a1b2c3d" }, acceptedSha: "a1b2c3d", mode: "auto", hold: null,
+    last: { step: "open", round: "1", sha: "a1b2c3d" }, acceptedSha: "a1b2c3d", mode: "auto", hold: null, reevaluating: false,
     next: { open: 2, hold: 1, ci: 1, feedback: 1 },
   });
   assert.deepEqual(s.review.requested, ["jane", "core"]);
   assert.match(hint({ ...s, event: "waiting" }), /체크 진행 중: Unit Tests \/ 리뷰 승인 대기 \(요청: jane, core\)/);
+});
+
+test("markers: a hold followed by review-loop markers is a re-evaluation even when a ci comment came last", () => {
+  const m = (step, extra = "") => ({ ...parseMarker(`<!-- pr-review-loop step=${step} round=1 sha=abc ${extra}-->`), url: `u-${step}` });
+  const open = m("open"), hold = m("hold");
+  assert.equal(summarizeMarkers([open, hold]).reevaluating, false);                       // the question is still open
+  assert.equal(summarizeMarkers([open, hold, m("ci")]).reevaluating, false);              // a ci comment alone is not the review loop
+  assert.equal(summarizeMarkers([open, hold, m("fix"), m("poc"), m("ci")]).reevaluating, true);
+  assert.equal(summarizeMarkers([m("review"), m("poc"), open, hold]).reevaluating, false); // markers before the hold do not count
+  assert.equal(summarizeMarkers([open, hold, m("review"), m("open")]).reevaluating, false); // a later open closed the hold
 });
 
 test("hold: an open question to the user comes first and blocks ready and auto_merge_off until the next step=open", () => {
