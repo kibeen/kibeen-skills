@@ -93,7 +93,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 `pr-loop` 은 커밋을 고정하지 않고 레포를 가리킨다. 그 레포에 푸시하면 `claude plugin update pr-loop@kibeen-skills` 로 받는다.
 
-스크립트 테스트: `node --test tests/` (네트워크와 `gh` 없이 돈다).
+스크립트 테스트: `node --test tests/*.test.mjs` (네트워크와 `gh` 없이 돈다).
 
 ### 기술 문서 작성 스킬 (기본 켬)
 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다.
