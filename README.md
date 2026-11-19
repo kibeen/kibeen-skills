@@ -30,8 +30,12 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
   `node ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply-settings.mjs --dry-run`.
 - 제거 목록(`retired`)에 있는 도구는 그 머신에서 직접 다시 설치해도 다음 동기화 때 다시 제거된다.
 
-## 답변 지침 (모든 머신에 자동 적용)
-`settings/CLAUDE.kibeen.md` 의 지침을 `apply-settings.mjs` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+## 지침과 출력 스타일 (모든 머신에 자동 적용)
+답변을 짧게 쓰게 하는 일은 Claude Code 내장 출력 스타일 `Concise` 가 맡는다. `settings/claude-settings.json` 의
+`outputStyle` 을 `apply-settings.mjs` 가 각 머신의 `settings.json` 에 넣는다. 그 머신에서 다른 스타일을 골라 두었으면 바꾸지 않는다.
+`Concise` 는 Claude Code 2.1.237 이상에서 동작하고, 그보다 낮은 버전은 기본 스타일로 돈다.
+
+`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙)을 `apply-settings.mjs` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
 `kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
 
@@ -49,7 +53,8 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
    플러그인을 제거한다. 이 마켓플레이스에서 빠진 `@kibeen-skills` 플러그인도 제거한다.
 2. **병합**: `extraKnownMarketplaces` 를 `autoUpdate: true` 로 선언하고, `enabledPlugins` 의 플러그인을 켠다.
    설치되지 않은 플러그인은 다음 Claude Code 시작 때 자동으로 받는다. 그 머신에서 `false` 로 꺼 둔 플러그인은 다시 켜지 않는다.
-   플러그인은 켜지 않고 정리와 마켓플레이스 선언만 하려면 `--marketplaces-only`.
+   이 마켓플레이스에서 빠진 플러그인의 `enabledPlugins` 항목은 지우고, `outputStyle` 은 그 머신에 값이 없을 때만 넣는다.
+   플러그인과 출력 스타일은 두고 정리와 마켓플레이스 선언만 하려면 `--marketplaces-only`.
 
 **프로젝트 범위**: 한 프로젝트에만 적용하려면 그 프로젝트 폴더에서 `claude plugin install kibeen-skills@kibeen-skills --scope project`.
 동기화 훅이 이를 알아보고 `<프로젝트>/.claude/settings.json` 과 `<프로젝트>/.claude/CLAUDE.md` 만 바꾼다(사용자 설정은 그대로).
@@ -89,26 +94,20 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `pr-merge-loop` | 스킬 | 사용자가 채택한 PR 을 머지까지: PR 을 열고(ready) auto-merge 켜기 → 필수 CI 실패 수정 → 리뷰어 코멘트 확인·반영(반영하지 않겠다는 답글만 문안을 사용자에게 보여 승인받은 뒤 게시) → 승인과 CI 통과로 머지되면 종료. 채택 뒤 수정이 평가한 동작을 바꾸면 auto-merge 를 끄고 사용자에게 묻는다 |
 | `pr-merge-watch.mjs` | 스킬 스크립트 | `pr-merge-loop` 의 감시 도구(읽기 전용). `status` 는 PR 상태 한 번, `wait` 는 할 일이 생길 때까지 대기(필수 체크 실패, 새 리뷰 코멘트, base 와 충돌, 머지 완료). `gh pr merge --auto` 가 보호 규칙 없는 브랜치에서 바로 머지하는 경우를 미리 알려 준다 |
 | `pr-reviewer` | 서브에이전트 | `pr-review-loop` 의 독립 리뷰어. 코드 결함과 PoC 평가 계획을 보고 PR 코멘트로 VERDICT 를 남긴다 |
-| 동기화 훅 | SessionStart 훅 | 이 머신을 `settings/` 에 맞춘다(설치·제거·답변 지침) |
+| 동기화 훅 | SessionStart 훅 | 이 머신을 `settings/` 에 맞춘다(설치, 제거, 지침, 출력 스타일) |
 
 매 세션 비용 약 700 토큰(`claude plugin details kibeen-skills@kibeen-skills`).
 
 스크립트 테스트: `node --test tests/` (네트워크와 `gh` 없이 돈다).
 
-### 논문·기술 문서 작성 스킬 (기본 켬)
-각 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다. API 키는 모두 선택이다(없어도 동작, 넣으면 검색 한도가 늘어난다).
+### 기술 문서 작성 스킬 (기본 켬)
+원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다.
 
 | 이름 | 하는 일 | 원본 |
 |---|---|---|
-| `scientific-writing` | 논문 원고 작성 (IMRAD 구조, 문단 단위 서술, 보고 지침) | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) (MIT) |
-| `citation-management` | 인용 관리 (DOI·PubMed·OpenAlex 메타데이터, BibTeX). 선택: `NCBI_API_KEY`, `OPENALEX_API_KEY` | 위와 같음 |
-| `literature-review` | 체계적 문헌 조사와 정리. 선택: `OPENROUTER_API_KEY`, PDF 출력은 Pandoc·XeLaTeX | 위와 같음 |
-| `peer-review` | 심사위원 관점 원고 검토 | 위와 같음 |
-| `venue-templates` | 학회·저널 양식과 제출 요건 | 위와 같음 |
-| `paper-lookup` | 논문 검색 (PubMed, arXiv, Semantic Scholar 등). 키 불필요 | 위와 같음 |
-| `doc-coauthoring` | 기술 문서·제안서·설계 문서 공동 작성 절차 | [anthropics/skills](https://github.com/anthropics/skills) (Anthropic 공식) |
+| `doc-coauthoring` | 기술 문서, 제안서, 설계 문서 공동 작성 절차 | [anthropics/skills](https://github.com/anthropics/skills) (Anthropic 공식) |
 
-7개 합계 매 세션 약 820 토큰. 원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
+원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
 `.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
@@ -122,7 +121,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 
-성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `hyperframes`(매 세션 약 3,900 토큰, 슬라이드 요청을 가로챔), `caveman`(어색한 압축 말투, 아래 답변 지침으로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요), `content-research-writer`(블로그용, 보고서·논문 형식에 안 맞음).
+성능 부담이 커서 제거: `claude-mem`(worker + 훅 9개), `skill-seekers`(Python 패키지가 없으면 매 세션 MCP 연결 실패), 쓰지 않는 서비스 연동 `canva`, `supabase`, `vercel`, `notion`, `firecrawl`, `repomix-mcp`(명령·에이전트가 MCP 없이 동작해 중복), `perplexity`(API 키 필요, 내장 웹 검색으로 대체), `higgsfield`(유료 크레딧 필요). 쓰지 않는 스킬 `canvas-design`, `algorithmic-art`, `tapestry`, `find-skills`, `mcp-builder`, `repomix-commands`, `repomix-explorer`, `hyperframes`(매 세션 약 3,900 토큰, 슬라이드 요청을 가로챔), `caveman`(어색한 압축 말투, 내장 `Concise` 출력 스타일로 대체), `superpowers-lab`(실험 단계, 리눅스·tmux·Docker 필요), `content-research-writer`(블로그용, 보고서·논문 형식에 안 맞음), 논문 작성 스킬 6종 `scientific-writing`, `citation-management`, `literature-review`, `peer-review`, `venue-templates`, `paper-lookup`(쓴 적이 없고 매 세션 약 1,000 토큰).
 
 ## Windows
 원본 마켓플레이스는 레포 전체를 받는다. 경로가 깊은 레포는

@@ -8,12 +8,6 @@
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
     "taste-skill@taste-skill",
-    "scientific-writing@kibeen-skills",
-    "citation-management@kibeen-skills",
-    "literature-review@kibeen-skills",
-    "peer-review@kibeen-skills",
-    "venue-templates@kibeen-skills",
-    "paper-lookup@kibeen-skills",
     "doc-coauthoring@kibeen-skills"
   ]
 }

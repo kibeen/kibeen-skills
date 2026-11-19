@@ -9,6 +9,8 @@
 // 2. Merge:
 //    - extraKnownMarketplaces: entries from the repo file replace same-named entries.
 //    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
+//      Entries for kibeen-skills plugins that left the catalog are dropped.
+//    - outputStyle: set when this machine has none; a style chosen on this machine stays.
 //    - Every other key in settings.json is left as is. A timestamped backup is written first.
 // 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
 //    (other content untouched, backup first).
@@ -22,7 +24,8 @@
 //   --dry-run            print every step, change nothing
 //   --check              print only what differs, change nothing; exit 2 when something differs
 //   --hook               print only a Claude Code hook JSON {"systemMessage": ...} (or nothing when in sync)
-//   --marketplaces-only  skip enabling plugins (clean-up and marketplace declarations still run)
+//   --marketplaces-only  skip enabling plugins and the output style (clean-up and marketplace
+//                        declarations still run)
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -99,7 +102,8 @@ function summary() {
     [count(/^(remove marketplace|uninstall)/), "정리"],
     [count(/^(marketplace |add marketplace)/), "마켓플레이스 선언"],
     [count(/^plugin .*: (enabled|removed)/), "플러그인 켜기·끄기"],
-    [count(/^CLAUDE\.md /), "답변 지침"],
+    [count(/^outputStyle: /), "출력 스타일"],
+    [count(/^CLAUDE\.md /), "지침"],
   ]
     .filter(([n]) => n)
     .map(([n, label]) => `${label} ${n}건`)
@@ -111,6 +115,8 @@ function hookMessage(text) {
 
 // ---- 1. clean-up ---------------------------------------------------------
 const retired = fragment.retired || {};
+const inCatalog = new Set(catalog.plugins.map(p => `${p.name}@${catalog.name}`));
+const leftCatalog = id => id.endsWith(`@${catalog.name}`) && !inCatalog.has(id);
 const installed = claudeJson(["plugin", "list", "--json"]);
 const known = claudeJson(["plugin", "marketplace", "list", "--json"]);
 const plan = [];
@@ -126,7 +132,6 @@ if (!installed || !known) {
       plan.push({ what: `remove marketplace ${m}`, args: ["plugin", "marketplace", "remove", m, ...scopeArgs] });
   }
   const goneMarkets = new Set(plan.map(p => p.args[3]));
-  const inCatalog = new Set(catalog.plugins.map(p => `${p.name}@${catalog.name}`));
   const retiredPlugins = new Set(retired.plugins || []);
   const mine = installed.filter(inScope);
   const installedIds = new Set(mine.map(p => p.id));
@@ -139,7 +144,7 @@ if (!installed || !known) {
     if (goneMarkets.has(id.split("@")[1])) continue; // removed with its marketplace
     if (retiredPlugins.has(id))
       plan.push({ what: `uninstall ${id} (retired)`, args: ["plugin", "uninstall", id, ...scopeArgs] });
-    else if (id.endsWith(`@${catalog.name}`) && !inCatalog.has(id))
+    else if (leftCatalog(id))
       plan.push({ what: `uninstall ${id} (no longer in ${catalog.name})`, args: ["plugin", "uninstall", id, ...scopeArgs] });
   }
   if (SCOPE === "project") {
@@ -189,7 +194,7 @@ for (const m of retired.marketplaces || []) {
 }
 
 next.enabledPlugins = { ...(current.enabledPlugins || {}) };
-for (const id of retired.plugins || []) {
+for (const id of [...(retired.plugins || []), ...Object.keys(next.enabledPlugins).filter(leftCatalog)]) {
   if (!(id in next.enabledPlugins)) continue;
   delete next.enabledPlugins[id];
   report.push(`plugin ${id}: removed from enabledPlugins`);
@@ -203,6 +208,14 @@ if (!MARKETS_ONLY) {
     if (current.enabledPlugins?.[id] === on) continue;
     next.enabledPlugins[id] = on;
     report.push(`plugin ${id}: enabled`);
+  }
+}
+if (!MARKETS_ONLY && fragment.outputStyle) {
+  if (current.outputStyle === undefined) {
+    next.outputStyle = fragment.outputStyle;
+    report.push(`outputStyle: set to ${fragment.outputStyle}`);
+  } else if (current.outputStyle !== fragment.outputStyle) {
+    notes.push(`outputStyle: kept ${current.outputStyle} chosen on this machine`);
   }
 }
 diffs.push(...report);
