@@ -30,6 +30,7 @@
     }
   },
   "enabledPlugins": {
+    "pr-loop@kibeen-skills": true,
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "taste-skill@taste-skill": true,

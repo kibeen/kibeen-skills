@@ -10,7 +10,16 @@
     {
       "name": "kibeen-skills",
       "source": "./plugins/kibeen-skills",
-      "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치)"
+      "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치, 설정 동기화 훅)"
+    },
+    {
+      "name": "pr-loop",
+      "source": {
+        "source": "github",
+        "repo": "kibeen/pr-loop"
+      },
+      "description": "구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차 (pr-review-loop, pr-merge-loop, pr-reviewer). 원본: kibeen/pr-loop",
+      "homepage": "https://github.com/kibeen/pr-loop"
     },
     {
       "name": "doc-coauthoring",

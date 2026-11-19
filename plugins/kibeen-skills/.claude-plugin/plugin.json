@@ -1,10 +1,11 @@
 {
   "name": "kibeen-skills",
-  "description": "kibeen 기본 도구 묶음. 설치하면 dependencies 의 플러그인이 함께 설치된다.",
+  "description": "kibeen 기본 도구 묶음. 설치하면 dependencies 의 플러그인이 함께 설치되고, SessionStart 훅이 이 머신을 설정에 맞춘다.",
   "author": {
     "name": "Jung Kibeen"
   },
   "dependencies": [
+    "pr-loop@kibeen-skills",
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
     "taste-skill@taste-skill",
