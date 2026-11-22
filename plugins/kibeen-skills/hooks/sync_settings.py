@@ -6,7 +6,7 @@ It applies every difference (installs, enables, removes) with a settings backup,
 and shows the user a one-line systemMessage of what it did. Nothing is added to the
 model's context. Set KIBEEN_AUTO_APPLY=0 to only be notified instead.
 
-Python 3.9+, standard library only. No Node.js required.
+Python 3.11+, standard library only. No Node.js required.
 """
 from __future__ import annotations
 

@@ -27,7 +27,7 @@ Usage: python scripts/apply_settings.py [--scope user|project] [--project-dir DI
   --marketplaces-only  skip enabling plugins and the output style (clean-up and marketplace
                        declarations still run)
 
-Python 3.9+, standard library only. No Node.js required.
+Python 3.11+, standard library only. No Node.js required.
 """
 from __future__ import annotations
 
@@ -416,7 +416,8 @@ if memo_next != memo_now:
         # file to CRLF on Windows, user content outside our markers included.
         # newline="" keeps the bytes as-is; text mode would rewrite the file to
         # CRLF on Windows. open() has taken newline since forever, while
-        # Path.write_text only got it in 3.10 and we support 3.9.
+        # Path.write_text only got it in 3.10 - keep open() so the floor
+        # stays wherever the declared minimum goes.
         with open(memo_file, "w", encoding="utf-8", newline="") as fh:
             fh.write(memo_next)
         log(f"CLAUDE.md instructions {what}: {memo_file}")

@@ -41,7 +41,7 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 
 ## 새 머신 설정 (1회)
 
-요구사항은 **Python 3.9+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다.
+요구사항은 **Python 3.11+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다. 3.11 과 3.13 에서 테스트를 돌려 확인한 하한이다(그 아래는 검증하지 않았다).
 `python` 이 없는 환경에서는 `python3` 로 바꿔 실행한다 (훅은 둘 다 시도한다).
 
 ```bash
