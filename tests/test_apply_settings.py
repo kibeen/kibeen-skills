@@ -250,22 +250,37 @@ class RuntimeFloorTest(unittest.TestCase):
         self.rt = _runtime
 
     def test_the_declared_floor_appears_nowhere_else_hardcoded(self):
-        """One source of truth. Any other file naming a version can drift from
-        it silently, which is exactly what happened with 3.9."""
+        """One source of truth. Any other file naming a lower version can drift
+        from it silently, which is exactly what happened with 3.9.
+
+        Scans every tracked text file rather than a hardcoded list, and matches
+        "Python 3.9", "python3.9" and "Python3.9" alike - a guard that only
+        catches the spelling I happened to think of is not a guard.
+        """
         floor = self.rt.floor_str()
-        pattern = re.compile(r"Python\s*(\d+\.\d+)")
-        for rel in ("README.md",
-                    "scripts/apply_settings.py",
-                    "plugins/kibeen-skills/hooks/sync_settings.py"):
-            text = (ROOT / rel).read_text(encoding="utf-8")
-            for found in set(pattern.findall(text)):
-                # An upgrade hint may name a newer version to install.
-                if tuple(int(n) for n in found.split(".")) >= self.rt.MIN_PYTHON:
-                    continue
+        pattern = re.compile(r"python\s*v?(\d+)\.(\d+)", re.IGNORECASE)
+        tracked = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT,
+            capture_output=True, check=True,
+        ).stdout.decode("utf-8").split(chr(0))
+        scanned = 0
+        for rel in [r for r in tracked if r.endswith((".md", ".py", ".json", ".yml", ".yaml"))]:
+            if rel == "tests/test_apply_settings.py":
+                continue  # this file names low versions on purpose
+            try:
+                text = (ROOT / rel).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            scanned += 1
+            for major, minor in set(pattern.findall(text)):
+                if (int(major), int(minor)) >= self.rt.MIN_PYTHON:
+                    continue  # an upgrade hint may name a newer version
                 self.fail(
-                    f"{rel} names Python {found}, below the declared floor "
-                    f"{floor}; update scripts/_runtime.py instead of hardcoding"
+                    "%s names Python %s.%s, below the declared floor %s; "
+                    "update MIN_PYTHON in scripts/_runtime.py instead of "
+                    "hardcoding a version" % (rel, major, minor, floor)
                 )
+        self.assertGreater(scanned, 3, "the scan found almost no files to check")
 
     def test_the_readme_states_the_declared_floor(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -340,6 +355,164 @@ class HookVisibilityTest(unittest.TestCase):
         log = m.dir / "plugins" / "data" / "kibeen-skills" / "last-error.log"
         self.assertTrue(log.exists(), "the traceback must be recoverable")
         self.assertIn("RuntimeError", log.read_text(encoding="utf-8"))
+
+def load_runtime_with_floor(floor, tmpdir):
+    """Import a copy of _runtime.py with MIN_PYTHON replaced."""
+    import importlib.util
+    src = (ROOT / "scripts" / "_runtime.py").read_text(encoding="utf-8")
+    src = src.replace("MIN_PYTHON = (3, 11)", "MIN_PYTHON = " + repr(floor))
+    path = Path(tmpdir) / "rt_variant.py"
+    path.write_text(src, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("rt_variant", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class FakeCheckout:
+    """A throwaway marketplace checkout the hook will find, with a stand-in
+    apply_settings.py, so every hook path can be driven without touching the
+    real settings."""
+
+    def __init__(self, child_src, floor=None):
+        self._tmp = tempfile.TemporaryDirectory(prefix="hook-")
+        self.dir = Path(self._tmp.name)
+        root = self.dir / "plugins" / "marketplaces" / "kibeen-skills"
+        (root / "scripts").mkdir(parents=True)
+        (root / "scripts" / "apply_settings.py").write_text(child_src, encoding="utf-8")
+        rt = (ROOT / "scripts" / "_runtime.py").read_text(encoding="utf-8")
+        if floor is not None:
+            rt = rt.replace("MIN_PYTHON = (3, 11)", "MIN_PYTHON = " + repr(floor))
+        (root / "scripts" / "_runtime.py").write_text(rt, encoding="utf-8")
+        # a non-empty HEAD, so the 24h back-off is actually in play
+        (root / ".git").mkdir()
+        (root / ".git" / "HEAD").write_text("abcdef01" * 5, encoding="utf-8")
+        self.env = {
+            "PATH": os.environ.get("PATH", ""),
+            "CLAUDE_CONFIG_DIR": str(self.dir),
+            "HOME": str(self.dir),
+            "USERPROFILE": str(self.dir),
+        }
+        for key in ("SYSTEMROOT", "SystemRoot", "SystemDrive", "ProgramData",
+                    "COMSPEC", "PATHEXT", "TEMP", "TMP"):
+            if key in os.environ:
+                self.env[key] = os.environ[key]
+
+    def cleanup(self):
+        self._tmp.cleanup()
+
+    def run(self):
+        hook = ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py"
+        return subprocess.run(
+            [sys.executable, str(hook)],
+            capture_output=True, text=True, encoding="utf-8", env=self.env,
+        )
+
+    @property
+    def stamp(self):
+        f = self.dir / "plugins" / "data" / "kibeen-skills" / "last-sync-user.json"
+        return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+    @property
+    def error_log(self):
+        return self.dir / "plugins" / "data" / "kibeen-skills" / "last-error.log"
+
+
+class InterpreterSurveyTest(unittest.TestCase):
+    """New behaviour in this change: pick an interpreter that meets the floor."""
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "scripts"))
+        self.addCleanup(lambda: sys.path.remove(str(ROOT / "scripts")))
+        import _runtime
+        self.rt = _runtime
+
+    def test_a_satisfied_machine_spawns_nothing(self):
+        argv, found = self.rt.survey()
+        self.assertEqual(argv, [sys.executable])
+        self.assertEqual(found, tuple(sys.version_info[:2]))
+
+    def test_candidates_come_from_the_floor_newest_first(self):
+        names = [c[0] for c in self.rt.candidates()]
+        major, minor = self.rt.MIN_PYTHON
+        self.assertEqual(names[0], "python%d.%d" % (major, minor + 3))
+        self.assertIn("python%d.%d" % (major, minor), names)
+        self.assertEqual(names[-3:], ["python%d" % major, "python", "py"])
+        for name in names:
+            if name.startswith("python%d." % major):
+                self.assertGreaterEqual(int(name.split(".")[1]), minor,
+                                        "nothing below the floor is ever probed")
+
+    def test_an_unreachable_floor_reports_the_best_version_found(self):
+        """The message must describe the machine, not the running interpreter."""
+        with tempfile.TemporaryDirectory() as d:
+            rt = load_runtime_with_floor((99, 0), d)
+            argv, best = rt.survey()
+        self.assertIsNone(argv)
+        self.assertEqual(best, tuple(sys.version_info[:2]))
+
+    def test_a_missing_interpreter_probes_to_none(self):
+        self.assertIsNone(self.rt._probe(["definitely-not-a-python-xyz"]))
+
+    def test_the_probe_budget_fits_the_hook_timeout(self):
+        """Probing every candidate plus the sync must finish inside the 120s
+        SessionStart timeout."""
+        worst = len(self.rt.candidates()) * self.rt.PROBE_TIMEOUT_S
+        hook_src = (ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py").read_text(
+            encoding="utf-8")
+        child = int(re.search(r"CHILD_TIMEOUT_S = (\d+)", hook_src).group(1))
+        self.assertLess(worst + child, 120, "probe %ds + child %ds" % (worst, child))
+
+class HookFailurePathTest(unittest.TestCase):
+    """Every case here exited 0 with no output before this change, which is how
+    four defects shipped: the real work happens in the child process."""
+
+    def checkout(self, child_src, floor=None):
+        c = FakeCheckout(child_src, floor)
+        self.addCleanup(c.cleanup)
+        return c
+
+    def test_a_child_that_exits_nonzero_is_logged_and_announced(self):
+        c = self.checkout("import sys\nsys.stderr.write('Traceback: boom')\nsys.exit(1)\n")
+        r = c.run()
+        self.assertEqual(r.returncode, 0, "a failed sync must never block a session")
+        self.assertIn("systemMessage", r.stdout)
+        self.assertTrue(c.error_log.exists())
+        log = c.error_log.read_text(encoding="utf-8")
+        self.assertIn("exited 1", log)
+        self.assertIn("boom", log, "the child stderr is the only copy of its traceback")
+
+    def test_a_failed_sync_is_retried_next_session(self):
+        c = self.checkout("import sys; sys.exit(1)\n")
+        c.run()
+        self.assertIsNone(c.stamp.get("sha"),
+                          "with a sha recorded, fixing the cause would wait 24h")
+        self.assertEqual(c.stamp.get("mode"), "failed")
+
+    def test_the_failure_notice_is_not_repeated_every_session(self):
+        c = self.checkout("import sys; sys.exit(1)\n")
+        self.assertIn("systemMessage", c.run().stdout)
+        self.assertNotIn("systemMessage", c.run().stdout, "once a day, not every session")
+        self.assertIsNone(c.stamp.get("sha"), "throttling the notice must not stop the retry")
+
+    def test_exit_2_means_differences_found_not_failure(self):
+        """Check mode uses exit 2 for "something differs". Treating that as a
+        crash would cry wolf on every machine with pending changes."""
+        c = self.checkout("import sys; sys.exit(2)\n")
+        r = c.run()
+        self.assertNotIn("systemMessage", r.stdout)
+        self.assertFalse(c.error_log.exists())
+        self.assertTrue(c.stamp.get("sha"), "a clean run records the sha and backs off")
+
+    def test_no_new_enough_python_skips_with_an_actionable_message(self):
+        c = self.checkout("import sys; sys.exit(0)\n", floor=(99, 0))
+        r = c.run()
+        self.assertEqual(r.returncode, 0)
+        payload = json.loads(r.stdout)
+        self.assertIn("99.0", payload["systemMessage"])
+        self.assertEqual(c.stamp.get("mode"), "python-too-old")
+        self.assertIsNone(c.stamp.get("sha"),
+                          "installing Python must recover on the next session")
 
 if __name__ == "__main__":
     unittest.main()

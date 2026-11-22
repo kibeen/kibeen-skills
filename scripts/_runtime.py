@@ -3,7 +3,7 @@
 Single source of truth for the minimum version. The port shipped a floor of
 "3.9+" that nothing ever ran, and the defect hiding behind it (a 3.10+ API)
 only surfaced in review - so the number lives here once, every other mention
-is checked against it by tests, and the hook refuses to guess.
+is checked against it by tests, and nothing re-hardcodes a version.
 
 Deliberately written for very old Python: no f-strings, no annotations, no
 `from __future__`. A guard that cannot be parsed by the interpreter it is
@@ -15,12 +15,11 @@ import sys
 
 MIN_PYTHON = (3, 11)
 
-# Interpreters to try when the one running us is too old, best first.
-# "py -3" is the Windows launcher, which knows about installs not on PATH.
-_CANDIDATES = (
-    ["python3.14"], ["python3.13"], ["python3.12"], ["python3.11"],
-    ["python3"], ["python"], ["py", "-3"],
-)
+# One probe must not eat the hook's budget: the caller also runs the sync
+# itself. 7 candidates x PROBE_TIMEOUT_S has to leave room under the 120s
+# SessionStart timeout.
+PROBE_TIMEOUT_S = 3
+_LOOKAHEAD = 3  # how many minor versions above the floor to look for
 
 _PROBE = "import sys;sys.stdout.write('%d.%d' % sys.version_info[:2])"
 
@@ -30,11 +29,26 @@ def floor_str():
 
 
 def version_str(info=None):
-    return "%d.%d" % (info or sys.version_info)[:2]
+    return "%d.%d" % tuple((info or sys.version_info)[:2])
 
 
 def meets(info=None):
     return tuple((info or sys.version_info)[:2]) >= MIN_PYTHON
+
+
+def candidates():
+    """Interpreters to try, newest first, derived from the floor.
+
+    `py -3` is the Windows launcher, which knows about installs not on PATH.
+    """
+    major, minor = MIN_PYTHON
+    out = []
+    for m in range(minor + _LOOKAHEAD, minor - 1, -1):
+        out.append(["python%d.%d" % (major, m)])
+    out.append(["python%d" % major])
+    out.append(["python"])
+    out.append(["py", "-%d" % major])
+    return out
 
 
 def _probe(argv):
@@ -42,7 +56,8 @@ def _probe(argv):
     try:
         r = subprocess.run(
             argv + ["-c", _PROBE],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=PROBE_TIMEOUT_S,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -55,37 +70,45 @@ def _probe(argv):
         return None
 
 
-def find_interpreter():
-    """An interpreter that meets the floor, as an argv list, or None.
+def survey():
+    """(argv, version) of an interpreter meeting the floor, else (None, best).
 
-    Prefers the one already running, so a satisfied machine spawns nothing.
+    `best` is the newest version found anywhere, so the caller can report what
+    the machine actually has instead of whatever happens to be running.
+    Prefers the running interpreter when it qualifies, so a healthy machine
+    spawns nothing.
     """
     if meets():
-        return [sys.executable]
-    seen = set()
-    for argv in _CANDIDATES:
-        key = tuple(argv)
-        if key in seen:
-            continue
-        seen.add(key)
+        return [sys.executable], tuple(sys.version_info[:2])
+    best = tuple(sys.version_info[:2])
+    for argv in candidates():
         info = _probe(argv)
-        if info is not None and meets(info):
-            return argv
-    return None
+        if info is None:
+            continue
+        if meets(info):
+            return argv, info
+        if info > best:
+            best = info
+    return None, best
+
+
+def find_interpreter():
+    return survey()[0]
 
 
 def upgrade_hint():
-    """One command the user can run to get a new-enough Python."""
+    """One command that gets a Python meeting the floor. Version comes from
+    MIN_PYTHON, never a second hardcoded number."""
     want = floor_str()
     if sys.platform == "win32":
-        return "winget install Python.Python.3.13"
+        return "winget install Python.Python." + want
     if sys.platform == "darwin":
-        return "brew install python@3.13"
+        return "brew install python@" + want
     for mgr, cmd in (
         ("apt-get", "sudo apt install python" + want),
-        ("dnf", "sudo dnf install python" + want.replace(".", "")),
+        ("dnf", "sudo dnf install python" + want),
         ("pacman", "sudo pacman -S python"),
-        ("zypper", "sudo zypper install python3"),
+        ("zypper", "sudo zypper install python" + want),
     ):
         for d in os.environ.get("PATH", "").split(os.pathsep):
             if d and os.path.exists(os.path.join(d, mgr)):
@@ -93,10 +116,11 @@ def upgrade_hint():
     return "install Python " + want + " or newer"
 
 
-def shortfall_message():
-    """What to tell the user when no interpreter on this machine is new enough."""
+def shortfall_message(found=None):
+    """What to tell the user when nothing on this machine is new enough."""
     return (
         "kibeen-skills 설정 동기화를 건너뜁니다: Python "
-        + floor_str() + " 이상이 필요하지만 이 머신에서 찾은 것은 "
-        + version_str() + " 입니다. 설치 후 자동 복구됩니다 — " + upgrade_hint()
+        + floor_str() + " 이상이 필요하지만 이 머신에서 가장 새 것은 "
+        + version_str(found) + " 입니다. 설치하면 다음 세션에 자동 복구됩니다 — "
+        + upgrade_hint()
     )
