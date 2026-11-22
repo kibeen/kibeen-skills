@@ -32,13 +32,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: read
+        # The shape check lives in Python, not in a shell glob: `[0-9]*.[0-9]*`
+        # accepts "3abc.1def" and anything else that merely starts with a
+        # digit, and this value goes on to be interpolated into later steps.
         run: |
-          floor=$(python3 -c 'import sys; sys.path.insert(0, "scripts"); import _runtime; print(_runtime.floor_str())')
+          floor=$(python3 -c 'import re, sys; sys.path.insert(0, "scripts"); import _runtime; v = _runtime.floor_str(); sys.exit("floor_str() gave %r, which is not an N.N version" % v) if not re.fullmatch(r"\d+\.\d+", v) else print(v)')
           echo "declared floor: $floor"
-          case "$floor" in
-            [0-9]*.[0-9]*) ;;
-            *) echo "_runtime.floor_str() gave no usable version: '$floor'"; exit 1 ;;
-          esac
           echo "version=$floor" >> "$GITHUB_OUTPUT"
 
   test:
@@ -75,6 +74,14 @@ jobs:
             echo "setup-python installed $got, not the requested $want"
             exit 1
           fi
+      - name: Confirm the interpreter is at or above the declared floor
+        # Covers the "3.x" leg, whose requested version says nothing about
+        # which release it resolved to.
+        run: >
+          python -c "import sys;
+          floor = tuple(int(n) for n in '${{ needs.floor.outputs.version }}'.split('.'));
+          sys.exit(0 if sys.version_info[:2] >= floor else
+          'running %d.%d, below the declared floor %d.%d' % (sys.version_info[:2] + floor))"
       - name: Check the suite is collected
         # discover exits 0 when it finds nothing, so a suite that moved out of
         # the search path would leave CI green with nothing run.
