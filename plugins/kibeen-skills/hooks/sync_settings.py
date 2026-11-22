@@ -6,7 +6,8 @@ It applies every difference (installs, enables, removes) with a settings backup,
 and shows the user a one-line systemMessage of what it did. Nothing is added to the
 model's context. Set KIBEEN_AUTO_APPLY=0 to only be notified instead.
 
-Python 3.11+, standard library only. No Node.js required.
+Standard library only, no Node.js. The minimum Python version is declared
+once in scripts/_runtime.py; this hook picks an interpreter that meets it.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 INTERVAL_S = 24 * 60 * 60
@@ -52,6 +54,27 @@ else:
 stamp_file = data_dir / f"last-sync-{stamp_key}.json"
 
 SCRIPT_REL = Path("scripts") / "apply_settings.py"
+
+error_log = data_dir / "last-error.log"
+
+
+def note(text: str) -> None:
+    """Tell the user, through the one channel a SessionStart hook has."""
+    sys.stdout.write(json.dumps({"systemMessage": text}) + chr(10))
+
+
+def write_stamp(sha: str, scope: str, status, mode: str) -> None:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    stamp_file.write_text(
+        json.dumps({
+            "at": time.time(),
+            "sha": sha,
+            "scope": scope,
+            "status": status,
+            "mode": mode,
+        }) + chr(10),
+        encoding="utf-8",
+    )
 
 
 def marketplace_root() -> Path | None:
@@ -112,8 +135,20 @@ try:
     if sha and sha == last.get("sha") and time.time() - (last.get("at") or 0) < INTERVAL_S:
         sys.exit(0)
 
-    args = [
-        sys.executable,
+    # Floor and interpreter selection live in the marketplace checkout, so the
+    # number is not duplicated here. Import after locating root.
+    sys.path.insert(0, str(root / "scripts"))
+    import _runtime
+
+    argv = _runtime.find_interpreter()
+    if argv is None:
+        # Nothing on this machine can run the sync. Say so once a day, with the
+        # command that fixes it, instead of exiting 0 and looking healthy.
+        note(_runtime.shortfall_message())
+        write_stamp(sha, scope, None, "python-too-old")
+        sys.exit(0)
+
+    args = argv + [
         str(root / SCRIPT_REL),
         "--hook",
         *([] if auto_apply else ["--check"]),
@@ -129,21 +164,23 @@ try:
         # Stamp a timeout too (status null, as the old spawnSync reported it);
         # skipping the stamp would retry this 110s run on every single session.
         pass
-    data_dir.mkdir(parents=True, exist_ok=True)
-    stamp_file.write_text(
-        json.dumps({
-            "at": time.time(),
-            "sha": sha,
-            "scope": scope,
-            "status": status,
-            "mode": "apply" if auto_apply else "check",
-        }) + chr(10),
-        encoding="utf-8",
-    )
+    write_stamp(sha, scope, status, "apply" if auto_apply else "check")
     if out.strip().startswith("{"):
         sys.stdout.write(out)
 except Exception:
-    # A failed sync must never get in the way of starting a session.
-    pass
+    # A failed sync must never block a session - but it must not look healthy
+    # either. Swallowing the traceback is what let four defects ship.
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        error_log.write_text(
+            time.strftime("%Y-%m-%d %H:%M:%S") + chr(10) + traceback.format_exc(),
+            encoding="utf-8",
+        )
+        note(
+            "kibeen-skills 설정 동기화가 실패했습니다 (세션은 그대로 진행됩니다). "
+            "원인: " + error_log.name + " — " + str(error_log)
+        )
+    except Exception:
+        pass
 
 sys.exit(0)

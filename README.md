@@ -41,7 +41,11 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 
 ## 새 머신 설정 (1회)
 
-요구사항은 **Python 3.11+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다. 3.11 과 3.13 에서 테스트를 돌려 확인한 하한이다(그 아래는 검증하지 않았다).
+요구사항은 **Python 3.11+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다.
+
+하한은 `scripts/_runtime.py` 의 `MIN_PYTHON` 한 곳에만 적혀 있고, 다른 곳에 더 낮은 버전이 적히면 테스트가 실패한다. 3.11 과 3.13 에서 테스트를 돌려 확인한 값이다.
+
+훅은 하한을 만족하는 인터프리터를 스스로 찾는다 — 지금 돌고 있는 것이 낮으면 `python3.13`, `py -3` 등을 차례로 시도한다. 머신에 만족하는 것이 하나도 없으면 동기화를 건너뛰고 설치 명령을 한 줄로 알려 준다(Windows `winget`, macOS `brew`, Linux 는 패키지 관리자 감지). 조용히 실패하지 않는다. 동기화가 예외로 죽은 경우에도 traceback 을 `~/.claude/plugins/data/kibeen-skills/last-error.log` 에 남기고 사용자에게 알린다 — 세션은 그대로 진행된다.
 `python` 이 없는 환경에서는 `python3` 로 바꿔 실행한다 (훅은 둘 다 시도한다).
 
 ```bash

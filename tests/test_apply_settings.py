@@ -5,8 +5,10 @@ Run: python -m unittest discover -s tests
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -210,6 +212,7 @@ class HookPathTest(unittest.TestCase):
         root = m.dir / "plugins" / "marketplaces" / "kibeen-skills"
         for rel in (
             Path("scripts") / "apply_settings.py",
+            Path("scripts") / "_runtime.py",
             Path("settings") / "claude-settings.json",
             Path("settings") / "CLAUDE.kibeen.md",
             Path(".claude-plugin") / "marketplace.json",
@@ -235,6 +238,108 @@ class HookPathTest(unittest.TestCase):
         m.run()
         self.assertNotIn(bytes([13, 10]), (m.dir / "settings.json").read_bytes())
 
+
+class RuntimeFloorTest(unittest.TestCase):
+    """Guards against the failure this repo already shipped once: a declared
+    Python floor that nothing ran, with a too-new API hiding behind it."""
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "scripts"))
+        self.addCleanup(lambda: sys.path.remove(str(ROOT / "scripts")))
+        import _runtime
+        self.rt = _runtime
+
+    def test_the_declared_floor_appears_nowhere_else_hardcoded(self):
+        """One source of truth. Any other file naming a version can drift from
+        it silently, which is exactly what happened with 3.9."""
+        floor = self.rt.floor_str()
+        pattern = re.compile(r"Python\s*(\d+\.\d+)")
+        for rel in ("README.md",
+                    "scripts/apply_settings.py",
+                    "plugins/kibeen-skills/hooks/sync_settings.py"):
+            text = (ROOT / rel).read_text(encoding="utf-8")
+            for found in set(pattern.findall(text)):
+                # An upgrade hint may name a newer version to install.
+                if tuple(int(n) for n in found.split(".")) >= self.rt.MIN_PYTHON:
+                    continue
+                self.fail(
+                    f"{rel} names Python {found}, below the declared floor "
+                    f"{floor}; update scripts/_runtime.py instead of hardcoding"
+                )
+
+    def test_the_readme_states_the_declared_floor(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"Python {self.rt.floor_str()}+", readme)
+
+    def test_the_guard_parses_on_pythons_it_must_reject(self):
+        """A guard the rejected interpreter cannot parse never runs."""
+        src = (ROOT / "scripts" / "_runtime.py").read_text(encoding="utf-8")
+        for major, minor in ((3, 6), (3, 8), (3, 9)):
+            ast.parse(src, feature_version=(major, minor))
+
+    def test_meets_compares_against_the_floor(self):
+        self.assertFalse(self.rt.meets((3, 9, 0)))
+        self.assertTrue(self.rt.meets(self.rt.MIN_PYTHON + (0,)))
+
+    def test_an_upgrade_hint_is_always_offered(self):
+        hint = self.rt.upgrade_hint()
+        self.assertTrue(hint.strip())
+        self.assertIn(self.rt.floor_str(), self.rt.shortfall_message())
+        self.assertIn(hint, self.rt.shortfall_message())
+
+    def test_apply_settings_refuses_to_run_below_the_floor(self):
+        """Raise the floor past the running interpreter and the script must
+        stop with the hint, not start writing files."""
+        m = Machine()
+        self.addCleanup(m.cleanup)
+        shim = m.dir / "shim"
+        shim.mkdir()
+        (shim / "_runtime.py").write_text(
+            (ROOT / "scripts" / "_runtime.py").read_text(encoding="utf-8")
+            .replace("MIN_PYTHON = (3, 11)", "MIN_PYTHON = (99, 0)"),
+            encoding="utf-8",
+        )
+        (shim / "apply_settings.py").write_bytes(
+            (ROOT / "scripts" / "apply_settings.py").read_bytes()
+        )
+        for rel in (Path("settings") / "claude-settings.json",
+                    Path("settings") / "CLAUDE.kibeen.md",
+                    Path(".claude-plugin") / "marketplace.json"):
+            (m.dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            (m.dir / rel).write_bytes((ROOT / rel).read_bytes())
+        r = subprocess.run(
+            [sys.executable, str(shim / "apply_settings.py")],
+            capture_output=True, text=True, encoding="utf-8", env=m.env,
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Python", r.stderr)
+        self.assertFalse((m.dir / "settings.json").exists())
+
+
+class HookVisibilityTest(unittest.TestCase):
+    """The hook used to swallow every failure, so a broken sync looked healthy.
+    Four defects shipped behind that."""
+
+    def test_a_crashing_sync_is_logged_and_announced(self):
+        m = Machine()
+        self.addCleanup(m.cleanup)
+        root = m.dir / "plugins" / "marketplaces" / "kibeen-skills"
+        (root / "scripts").mkdir(parents=True)
+        # present, so the hook proceeds - but broken, so the run raises
+        (root / "scripts" / "apply_settings.py").write_text("x", encoding="utf-8")
+        (root / "scripts" / "_runtime.py").write_text(
+            "raise RuntimeError('boom')", encoding="utf-8"
+        )
+        hook = ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py"
+        r = subprocess.run(
+            [sys.executable, str(hook)],
+            capture_output=True, text=True, encoding="utf-8", env=m.env,
+        )
+        self.assertEqual(r.returncode, 0, "a failed sync must never block a session")
+        self.assertIn("systemMessage", r.stdout)
+        log = m.dir / "plugins" / "data" / "kibeen-skills" / "last-error.log"
+        self.assertTrue(log.exists(), "the traceback must be recoverable")
+        self.assertIn("RuntimeError", log.read_text(encoding="utf-8"))
 
 if __name__ == "__main__":
     unittest.main()

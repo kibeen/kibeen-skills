@@ -27,7 +27,8 @@ Usage: python scripts/apply_settings.py [--scope user|project] [--project-dir DI
   --marketplaces-only  skip enabling plugins and the output style (clean-up and marketplace
                        declarations still run)
 
-Python 3.11+, standard library only. No Node.js required.
+Standard library only, no Node.js. The minimum Python version is declared
+once in scripts/_runtime.py and checked at startup.
 """
 from __future__ import annotations
 
@@ -50,6 +51,16 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8")
     except (AttributeError, OSError, ValueError):
         pass
+
+# The floor is declared once, in scripts/_runtime.py. Check it before any work:
+# this script shipped a floor it had never been run on, and the 3.10+ API behind
+# that claim only turned up in review.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runtime  # noqa: E402
+
+if not _runtime.meets():
+    sys.stderr.write(_runtime.shortfall_message() + chr(10))
+    sys.exit(1)
 
 ROOT = Path(__file__).resolve().parent.parent
 SELF = ROOT / "scripts" / "apply_settings.py"
