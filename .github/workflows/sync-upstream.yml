@@ -17,6 +17,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -32,10 +33,28 @@ jobs:
           # Repository variable; set it to e.g. 3 to adopt only releases at least 3 days old.
           MIN_AGE_DAYS: ${{ vars.MIN_AGE_DAYS || '0' }}
 
+      - name: Test the bumped tree
+        if: steps.sync.outputs.changed == 'true'
+        # The push below carries the GITHUB_TOKEN credentials actions/checkout
+        # installed, and GitHub starts no workflow run for such a push. So
+        # tests.yml never sees this commit - the one commit that reaches main
+        # without a pull request. Of the files bumped here, the suite reads
+        # .claude-plugin/marketplace.json; it does not read plugins/*/.mcp.json,
+        # so that half of the bump is still only as checked as the bump script
+        # makes it. Run the suite here, while the push can still be stopped.
+        #
+        # This uses the runner's python3. If the declared floor ever outruns
+        # that, this step fails loudly rather than skipping the tests.
+        #
+        # The collection guard is the one from tests.yml: discover exits 0 when
+        # it finds nothing, and this is the commit nobody reviews.
+        run: |
+          python3 -c "import unittest, sys; n = unittest.defaultTestLoader.discover('tests').countTestCases(); print('collected', n, 'tests'); sys.exit(0 if n else 'discover collected no tests: the suite is not where this workflow looks')"
+          python3 -m unittest discover -s tests
+
       - name: Commit and push
         if: steps.sync.outputs.changed == 'true'
         run: |
-          node -e 'JSON.parse(require("fs").readFileSync(".claude-plugin/marketplace.json","utf8"))'
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A

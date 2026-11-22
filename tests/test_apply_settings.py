@@ -153,6 +153,27 @@ class ApplySettingsTest(unittest.TestCase):
                     f"{plugin_id} is a dependency but not in marketplace.json",
                 )
 
+    def test_the_hooks_json_parses_and_runs_the_hook_script(self):
+        """CI parsed this file in a job of its own, with the locale's default
+        encoding. Reading it here gets both OSes and explicit utf-8, and lets
+        the command be checked rather than only the syntax."""
+        path = ROOT / "plugins" / "kibeen-skills" / "hooks" / "hooks.json"
+        hooks = json.loads(path.read_text(encoding="utf-8"))
+        entries = hooks["hooks"]["SessionStart"]
+        commands = [h["command"] for e in entries for h in e["hooks"]]
+        self.assertTrue(commands, "SessionStart runs nothing")
+        for command in commands:
+            self.assertIn("hooks/sync_settings.py", command)
+            self.assertIn(
+                "python3", command,
+                "a machine with no `python` on PATH needs the python3 fallback",
+            )
+            self.assertEqual(
+                command.count("hooks/sync_settings.py"), 2,
+                "both branches of the python / python3 fallback must run the "
+                "hook, not just the first",
+            )
+
 
 class HookPathTest(unittest.TestCase):
     """The --hook path and the hook script itself: the deployed code path.
@@ -341,6 +362,50 @@ class RuntimeFloorTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("Python", r.stderr)
         self.assertFalse((m.dir / "settings.json").exists())
+
+
+class SyncWorkflowGuardTest(unittest.TestCase):
+    """sync-upstream.yml pushes to main with credentials that start no
+    workflow run, so the step it runs itself is the only thing standing
+    between a bumped pin and the default branch. Nothing else in this repo
+    would notice if that step were dropped, reordered after the push, or
+    left collecting zero tests."""
+
+    def setUp(self):
+        path = ROOT / ".github" / "workflows" / "sync-upstream.yml"
+        self.lines = path.read_text(encoding="utf-8").split(chr(10))
+
+    def _first(self, pattern):
+        """The first line matching `pattern`, ignoring comments.
+
+        Without the comment skip, a step reverted to `run: echo skipping`
+        with the old commands left behind as a `#` note would satisfy both
+        assertions below while running nothing.
+        """
+        for i, line in enumerate(self.lines):
+            if line.lstrip().startswith("#"):
+                continue
+            if re.search(pattern, line):
+                return i
+        return None
+
+    def test_the_suite_runs_before_the_push(self):
+        tested = self._first(r"unittest discover")
+        pushed = self._first(r"^\s*git push")
+        self.assertIsNotNone(tested, "the sync workflow pushes to main untested")
+        self.assertIsNotNone(pushed, "expected a git push in the sync workflow")
+        self.assertLess(
+            tested, pushed,
+            "the test step must come before the push, or the bot commit lands "
+            "on main before anything has checked it",
+        )
+
+    def test_the_push_is_guarded_against_an_empty_suite(self):
+        self.assertIsNotNone(
+            self._first(r"countTestCases"),
+            "discover exits 0 on an empty suite, so the push needs the same "
+            "collection guard tests.yml uses",
+        )
 
 
 class HookVisibilityTest(unittest.TestCase):

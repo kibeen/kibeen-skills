@@ -1,0 +1,129 @@
+# Runs the settings-sync tests on every PR, and on pushes to main except the
+# one that matters most: sync-upstream.yml pushes with the token actions/checkout
+# installed, and GitHub starts no run for such a push, so that workflow runs the
+# suite itself before pushing.
+# Both OSes matter: the suite covers defects that surface on only one of them
+# (the Windows console code page, and CRLF translation in the files the hook
+# writes). It does not cover the hook's `python` / `python3` fallback - those
+# tests drive sys.executable and stub the interpreter probe - so that gap is
+# in the suite, not something this workflow can close.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  # Superseding a PR push is free; cancelling a main push would leave a commit
+  # on the default branch with no result of its own.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  floor:
+    # The minimum Python version is declared once, in scripts/_runtime.py.
+    # CI reads it instead of naming it again: a second copy here would drift
+    # the moment the floor moves, which is the failure this repo already had.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        # The shape check lives in Python, not in a shell glob: `[0-9]*.[0-9]*`
+        # accepts "3abc.1def" and anything else that merely starts with a
+        # digit, and this value goes on to be interpolated into later steps.
+        run: |
+          floor=$(python3 -c 'import re, sys; sys.path.insert(0, "scripts"); import _runtime; v = _runtime.floor_str(); sys.exit("floor_str() gave %r, which is not an N.N version" % v) if not re.fullmatch(r"\d+\.\d+", v) else print(v)')
+          echo "declared floor: $floor"
+          echo "version=$floor" >> "$GITHUB_OUTPUT"
+
+  test:
+    # The floor itself must be exercised, or a too-new API hides behind it.
+    # "3.x" catches the opposite drift: code that only works on the old floor.
+    needs: floor
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["${{ needs.floor.outputs.version }}", "3.x"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        # Windows would otherwise run these steps under pwsh, where the
+        # quoting in the one-liners below does not mean the same thing.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Confirm the floor leg is running the declared floor
+        # setup-python only warns on an empty version and falls back to the
+        # preinstalled one. Without this, a floor job that produced nothing
+        # would leave a green "latest on both OSes" matrix that never ran the
+        # floor at all.
+        #
+        # The comparison is against the floor, not against what this leg asked
+        # for. Asking and getting the same answer proves nothing if the thing
+        # asked for was wrong: a matrix entry edited to a literal above the
+        # floor would satisfy want == got, satisfy the at-or-above check
+        # below, and slip past the drift guard, which only looks for versions
+        # lower than the floor.
+        run: |
+          want='${{ matrix.python-version }}'
+          floor='${{ needs.floor.outputs.version }}'
+          got=$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+          echo "requested '$want', declared floor '$floor', running $got"
+          if [ -z "$want" ]; then
+            echo "no version was requested: the floor job produced nothing"
+            exit 1
+          fi
+          if [ "$want" != "3.x" ] && [ "$got" != "$floor" ]; then
+            echo "this leg runs $got, which is not the declared floor $floor"
+            exit 1
+          fi
+      - name: Confirm the interpreter is at or above the declared floor
+        # Covers the "3.x" leg, whose requested version says nothing about
+        # which release it resolved to.
+        run: >
+          python -c "import sys;
+          floor = tuple(int(n) for n in '${{ needs.floor.outputs.version }}'.split('.'));
+          sys.exit(0 if sys.version_info[:2] >= floor else
+          'running %d.%d, below the declared floor %d.%d' % (sys.version_info[:2] + floor))"
+      - name: Check the suite is collected
+        # discover exits 0 when it finds nothing, so a suite that moved out of
+        # the search path would leave CI green with nothing run.
+        run: >
+          python -c "import unittest, sys;
+          n = unittest.defaultTestLoader.discover('tests').countTestCases();
+          print('collected', n, 'tests');
+          sys.exit(0 if n else 'discover collected no tests: the suite is not where CI looks')"
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+  tests-passed:
+    # This is the only check worth requiring on the branch, for two reasons.
+    # The matrix check names carry the floor in them, so requiring those would
+    # write the version a third time - into branch settings, which no test in
+    # this repo can guard. And `needs: floor` means a failed floor job leaves
+    # the matrix skipped, which GitHub counts as a passing required check:
+    # zero tests run, green gate. Checking each result explicitly under
+    # always() is what closes that.
+    needs: [floor, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job succeeded
+        run: |
+          echo "floor=${{ needs.floor.result }}"
+          echo "test=${{ needs.test.result }}"
+          test "${{ needs.floor.result }}" = "success"
+          test "${{ needs.test.result }}" = "success"
