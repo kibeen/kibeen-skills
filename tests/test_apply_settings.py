@@ -168,6 +168,11 @@ class ApplySettingsTest(unittest.TestCase):
                 "python3", command,
                 "a machine with no `python` on PATH needs the python3 fallback",
             )
+            self.assertEqual(
+                command.count("hooks/sync_settings.py"), 2,
+                "both branches of the python / python3 fallback must run the "
+                "hook, not just the first",
+            )
 
 
 class HookPathTest(unittest.TestCase):
@@ -371,7 +376,15 @@ class SyncWorkflowGuardTest(unittest.TestCase):
         self.lines = path.read_text(encoding="utf-8").split(chr(10))
 
     def _first(self, pattern):
+        """The first line matching `pattern`, ignoring comments.
+
+        Without the comment skip, a step reverted to `run: echo skipping`
+        with the old commands left behind as a `#` note would satisfy both
+        assertions below while running nothing.
+        """
         for i, line in enumerate(self.lines):
+            if line.lstrip().startswith("#"):
+                continue
             if re.search(pattern, line):
                 return i
         return None
