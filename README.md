@@ -97,7 +97,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 `pr-loop` 은 커밋을 고정하지 않고 레포를 가리킨다. 그 레포에 푸시하면 `claude plugin update pr-loop@kibeen-skills` 로 받는다.
 
-스크립트 테스트: `python -m unittest discover -s tests` (네트워크와 `gh` 없이 돈다).
+스크립트 테스트: `python -m unittest discover -s tests` (11개, 네트워크와 `gh` 없이 돈다). 설정 병합과 CLAUDE.md 블록 외에 훅 경로도 덮는다 — 훅 JSON 이 레거시 코드페이지에서도 UTF-8 로 읽히는지, 깨진 `settings.json` 을 덮어쓰지 않는지, `hooks/sync_settings.py` end-to-end.
 
 ### 기술 문서 작성 스킬 (기본 켬)
 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다.

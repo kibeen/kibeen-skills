@@ -134,12 +134,10 @@ def read_settings() -> dict:
     try:
         return json.loads(file_.read_text(encoding="utf-8-sig"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        print(
+        fail(
             f"{file_} is not valid JSON ({e}); refusing to overwrite it. "
-            "Fix or move the file, then run this again.",
-            file=sys.stderr,
+            "Fix or move the file, then run this again."
         )
-        sys.exit(1)
 
 
 diffs: list[str] = []  # human-readable list of what differs from the repo
@@ -214,6 +212,19 @@ def summary() -> str:
         (count(r"^CLAUDE\.md "), "지침"),
     ]
     return ", ".join(f"{label} {n}건" for n, label in pairs if n)
+
+
+def fail(message: str) -> None:
+    """Stop with a reason the user actually sees.
+
+    Under --hook stderr goes nowhere (the parent swallows it), so without a
+    hook message the run would stall silently and the daily back-off would
+    repeat it unexplained every day.
+    """
+    print(message, file=sys.stderr)
+    if HOOK:
+        hook_message("kibeen-skills 설정 동기화 중단: " + message)
+    sys.exit(1)
 
 
 def hook_message(text: str) -> None:
@@ -366,7 +377,13 @@ BLOCK_RE = re.compile(
     r"<!-- BEGIN kibeen-skills[^\n]*-->\n.*?<!-- END kibeen-skills -->\n?", re.DOTALL
 )
 
-memo_now = memo_file.read_text(encoding="utf-8").replace("\r\n", "\n") if memo_file.exists() else ""
+if memo_file.exists():
+    try:
+        memo_now = memo_file.read_text(encoding="utf-8-sig").replace("\r\n", "\n")
+    except UnicodeDecodeError as e:
+        fail(f"{memo_file} is not UTF-8 ({e}); fix or move the file, then run this again.")
+else:
+    memo_now = ""
 wanted = (
     f"{BEGIN}\n{memo_src.read_text(encoding='utf-8').replace(chr(13) + chr(10), chr(10)).strip()}\n{END}\n"
     if memo_src.exists()
@@ -397,7 +414,11 @@ if memo_next != memo_now:
         dir_.mkdir(parents=True, exist_ok=True)
         # newline="" keeps the bytes as-is; text mode would rewrite the whole
         # file to CRLF on Windows, user content outside our markers included.
-        memo_file.write_text(memo_next, encoding="utf-8", newline="")
+        # newline="" keeps the bytes as-is; text mode would rewrite the file to
+        # CRLF on Windows. open() has taken newline since forever, while
+        # Path.write_text only got it in 3.10 and we support 3.9.
+        with open(memo_file, "w", encoding="utf-8", newline="") as fh:
+            fh.write(memo_next)
         log(f"CLAUDE.md instructions {what}: {memo_file}")
     elif not CHECK:
         verb = {"removed": "remove", "added": "add"}.get(what, "update")
@@ -422,7 +443,8 @@ log("\n".join([str(file_), *(report or ["Settings already up to date."]), *notes
 if not DRY and report:
     dir_.mkdir(parents=True, exist_ok=True)
     backup_once()
-    file_.write_text(json.dumps(next_, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    with open(file_, "w", encoding="utf-8", newline="") as fh:
+        fh.write(json.dumps(next_, indent=2, ensure_ascii=False) + "\n")
     log("Written. Restart Claude Code; enabled plugins that are not installed yet are fetched on startup.")
 
 if HOOK and not DRY and diffs:

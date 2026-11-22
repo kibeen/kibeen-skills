@@ -183,9 +183,9 @@ class HookPathTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(m.read()["theme"], "dark")
 
-    def test_user_content_in_claude_md_keeps_its_bytes(self):
-        """README promises everything outside the markers is untouched, so the
-        file must not come back rewritten to CRLF."""
+    def test_user_content_in_claude_md_survives_and_stays_lf(self):
+        """README promises the text outside the markers is untouched. It
+        must also not come back rewritten to CRLF (the old JS wrote LF)."""
         m = self.machine()
         memo = m.dir / "CLAUDE.md"
         NL = chr(10)
