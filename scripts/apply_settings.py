@@ -59,7 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runtime  # noqa: E402
 
 if not _runtime.meets():
-    sys.stderr.write(_runtime.shortfall_message() + chr(10))
+    sys.stderr.write(_runtime.running_shortfall_message() + chr(10))
     sys.exit(1)
 
 ROOT = Path(__file__).resolve().parent.parent

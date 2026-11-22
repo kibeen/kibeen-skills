@@ -258,28 +258,38 @@ class RuntimeFloorTest(unittest.TestCase):
         catches the spelling I happened to think of is not a guard.
         """
         floor = self.rt.floor_str()
-        pattern = re.compile(r"python\s*v?(\d+)\.(\d+)", re.IGNORECASE)
+        version = re.compile(r"(\d+)\.(\d+)")
         tracked = subprocess.run(
-            ["git", "ls-files", "-z"], cwd=ROOT,
-            capture_output=True, check=True,
+            ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True,
         ).stdout.decode("utf-8").split(chr(0))
         scanned = 0
         for rel in [r for r in tracked if r.endswith((".md", ".py", ".json", ".yml", ".yaml"))]:
-            if rel == "tests/test_apply_settings.py":
-                continue  # this file names low versions on purpose
+            if rel in ("tests/test_apply_settings.py", "scripts/_runtime.py"):
+                continue  # these name low versions on purpose
             try:
                 text = (ROOT / rel).read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             scanned += 1
-            for major, minor in set(pattern.findall(text)):
-                if (int(major), int(minor)) >= self.rt.MIN_PYTHON:
-                    continue  # an upgrade hint may name a newer version
-                self.fail(
-                    "%s names Python %s.%s, below the declared floor %s; "
-                    "update MIN_PYTHON in scripts/_runtime.py instead of "
-                    "hardcoding a version" % (rel, major, minor, floor)
-                )
+            for lineno, line in enumerate(text.split(chr(10)), 1):
+                # Line-scoped so an unrelated number cannot trip it: any line
+                # mentioning python in any spelling (python3.9, Python 3.9,
+                # python-version: "3.9", PYTHON_VERSION=3.9), or stating a
+                # requirement (requires 3.9+).
+                lowered = line.lower()
+                if "python" not in lowered and not re.search(r"requires?\s+\d+\.\d+", lowered):
+                    continue
+                found = version.findall(line)
+                found += re.findall(r"python(\d)(\d+)", line, re.IGNORECASE)
+                for major, minor in found:
+                    if (int(major), int(minor)) >= self.rt.MIN_PYTHON:
+                        continue  # an upgrade hint may name a newer version
+                    self.fail(
+                        "%s:%d names %s.%s, below the declared floor %s; update "
+                        "MIN_PYTHON in scripts/_runtime.py instead of hardcoding "
+                        "a version%s  %s" % (rel, lineno, major, minor, floor,
+                                             chr(10), line.strip())
+                    )
         self.assertGreater(scanned, 3, "the scan found almost no files to check")
 
     def test_the_readme_states_the_declared_floor(self):
@@ -374,7 +384,8 @@ class FakeCheckout:
     apply_settings.py, so every hook path can be driven without touching the
     real settings."""
 
-    def __init__(self, child_src, floor=None):
+    def __init__(self, child_src, floor=None, child_timeout=None):
+        self.child_timeout = child_timeout
         self._tmp = tempfile.TemporaryDirectory(prefix="hook-")
         self.dir = Path(self._tmp.name)
         root = self.dir / "plugins" / "marketplaces" / "kibeen-skills"
@@ -402,7 +413,13 @@ class FakeCheckout:
         self._tmp.cleanup()
 
     def run(self):
-        hook = ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py"
+        src = (ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py").read_text(
+            encoding="utf-8")
+        if self.child_timeout is not None:
+            src = src.replace("CHILD_TIMEOUT_S = 90",
+                              "CHILD_TIMEOUT_S = %d" % self.child_timeout)
+        hook = self.dir / "hook_under_test.py"
+        hook.write_text(src, encoding="utf-8", newline=chr(10))
         return subprocess.run(
             [sys.executable, str(hook)],
             capture_output=True, text=True, encoding="utf-8", env=self.env,
@@ -462,13 +479,52 @@ class InterpreterSurveyTest(unittest.TestCase):
             encoding="utf-8")
         child = int(re.search(r"CHILD_TIMEOUT_S = (\d+)", hook_src).group(1))
         self.assertLess(worst + child, 120, "probe %ds + child %ds" % (worst, child))
+    def test_an_older_running_interpreter_is_replaced_by_a_candidate(self):
+        """The whole point: a machine whose `python` is too old still syncs
+        through a newer install."""
+        with tempfile.TemporaryDirectory() as d:
+            rt = load_runtime_with_floor((99, 1), d)
+            calls = []
+
+            def fake_probe(argv):
+                calls.append(argv[0])
+                return (99, 1) if argv[0] == "python99.1" else (3, 8)
+
+            rt._probe = fake_probe
+            argv, found = rt.survey()
+        self.assertEqual(argv, ["python99.1"])
+        self.assertEqual(found, (99, 1))
+        self.assertEqual(calls[0], "python99.4", "newest candidate is tried first")
+
+    def test_the_drift_guard_catches_the_spellings_ci_files_use(self):
+        """A guard that only matches the spelling I thought of is not a guard."""
+        floor_major, floor_minor = self.rt.MIN_PYTHON
+        low = "%d.%d" % (floor_major, floor_minor - 2)
+        for line in (
+            'python' + low + ' is required',
+            'sudo dnf install python' + low.replace('.', ''),
+            '  python-version: "' + low + '"',
+            'PYTHON_VERSION=' + low,
+            'Python ' + low + '+',
+            'requires ' + low + '+',
+        ):
+            with self.subTest(line=line):
+                lowered = line.lower()
+                hit = "python" in lowered or re.search(r"requires?\s+\d+\.\d+", lowered)
+                self.assertTrue(hit, "line would not even be scanned")
+                found = [(int(a), int(b)) for a, b in
+                         re.findall(r"(\d+)\.(\d+)", line)]
+                found += [(int(a), int(b)) for a, b in
+                          re.findall(r"python(\d)(\d+)", line, re.IGNORECASE)]
+                self.assertTrue(any(v < self.rt.MIN_PYTHON for v in found),
+                                "no below-floor version detected")
 
 class HookFailurePathTest(unittest.TestCase):
     """Every case here exited 0 with no output before this change, which is how
     four defects shipped: the real work happens in the child process."""
 
-    def checkout(self, child_src, floor=None):
-        c = FakeCheckout(child_src, floor)
+    def checkout(self, child_src, floor=None, child_timeout=None):
+        c = FakeCheckout(child_src, floor, child_timeout)
         self.addCleanup(c.cleanup)
         return c
 
@@ -513,6 +569,58 @@ class HookFailurePathTest(unittest.TestCase):
         self.assertEqual(c.stamp.get("mode"), "python-too-old")
         self.assertIsNone(c.stamp.get("sha"),
                           "installing Python must recover on the next session")
+    def test_a_timed_out_child_is_a_failure_not_a_success(self):
+        """Its status is None, which used to slip past the non-zero check and
+        land in the success branch: stamped as applied, nothing logged, and
+        then silent for 24h. apply_settings runs `claude plugin install` as its
+        own child, so a hang there means half-applied settings."""
+        c = self.checkout("import sys,time\n"
+                          "sys.stderr.write('slow'); sys.stderr.flush()\n"
+                          "time.sleep(30)\n",
+                          child_timeout=2)
+        r = c.run()
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("systemMessage", r.stdout)
+        self.assertEqual(c.stamp.get("mode"), "timeout")
+        self.assertTrue(c.error_log.exists())
+        log = c.error_log.read_text(encoding="utf-8")
+        self.assertIn("timed out", log)
+        self.assertIn("slow", log, "whatever it said before being killed is the only clue")
+
+    def test_a_timeout_backs_off_so_it_does_not_delay_every_session(self):
+        """Unlike a fast failure, retrying this costs the full timeout each
+        time, so the sha is kept and the next attempt waits."""
+        c = self.checkout("import time; time.sleep(30)\n", child_timeout=2)
+        c.run()
+        self.assertTrue(c.stamp.get("sha"))
+
+    def test_the_child_own_failure_message_reaches_the_user(self):
+        """apply_settings.fail() writes a hook message naming what the user has
+        to do - missing claude CLI, unparseable settings.json. Replacing it
+        with "see the log" buries the only actionable part, which main did not
+        do."""
+        c = self.checkout(
+            "import json,sys\n"
+            'sys.stdout.write(json.dumps({"systemMessage": "SENTINEL act on this"}))\n'
+            "sys.exit(1)\n"
+        )
+        r = c.run()
+        self.assertIn("SENTINEL act on this", r.stdout)
+        self.assertTrue(c.error_log.exists(), "still logged for diagnosis")
+
+    def test_a_corrupt_stamp_cannot_abort_the_session(self):
+        """The stamp is read before the guarded block, so anything unreadable
+        there used to escape as a raw traceback or be swallowed forever."""
+        for payload in (b"[]", b"\xff\xfe not utf-8", b"{truncated"):
+            with self.subTest(payload=payload[:12]):
+                c = self.checkout("import sys; sys.exit(0)\n")
+                stamp = c.dir / "plugins" / "data" / "kibeen-skills"
+                stamp.mkdir(parents=True, exist_ok=True)
+                (stamp / "last-sync-user.json").write_bytes(payload)
+                r = c.run()
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stderr, "", "no raw traceback may reach the user")
+                self.assertTrue(c.stamp.get("sha"), "the run still completes and stamps")
 
 if __name__ == "__main__":
     unittest.main()

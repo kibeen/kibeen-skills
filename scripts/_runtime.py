@@ -5,9 +5,10 @@ Single source of truth for the minimum version. The port shipped a floor of
 only surfaced in review - so the number lives here once, every other mention
 is checked against it by tests, and nothing re-hardcodes a version.
 
-Deliberately written for very old Python: no f-strings, no annotations, no
-`from __future__`. A guard that cannot be parsed by the interpreter it is
-meant to reject is not a guard.
+Deliberately written without f-strings, annotations or `from __future__`: a
+guard the rejected interpreter cannot parse never runs. In practice its
+callers use `from __future__ import annotations`, so 3.7 is the oldest
+interpreter that reaches this check at all.
 """
 import os
 import subprocess
@@ -108,7 +109,7 @@ def upgrade_hint():
         ("apt-get", "sudo apt install python" + want),
         ("dnf", "sudo dnf install python" + want),
         ("pacman", "sudo pacman -S python"),
-        ("zypper", "sudo zypper install python" + want),
+        ("zypper", "sudo zypper install python" + want.replace(".", "")),
     ):
         for d in os.environ.get("PATH", "").split(os.pathsep):
             if d and os.path.exists(os.path.join(d, mgr)):
@@ -123,4 +124,13 @@ def shortfall_message(found=None):
         + floor_str() + " 이상이 필요하지만 이 머신에서 가장 새 것은 "
         + version_str(found) + " 입니다. 설치하면 다음 세션에 자동 복구됩니다 — "
         + upgrade_hint()
+    )
+
+
+def running_shortfall_message():
+    """For a direct run: the interpreter the user invoked is the one at fault,
+    so do not claim anything about the rest of the machine."""
+    return (
+        "Python " + floor_str() + " 이상이 필요하지만 이 인터프리터는 "
+        + version_str() + " 입니다 — " + upgrade_hint()
     )

@@ -18,6 +18,8 @@ import subprocess
 import sys
 import time
 import traceback
+
+sys.dont_write_bytecode = True  # no __pycache__ in the user checkout
 from pathlib import Path
 
 INTERVAL_S = 24 * 60 * 60
@@ -65,25 +67,26 @@ def note(text: str) -> None:
 
 
 def read_stamp() -> dict:
-    try:
-        return json.loads(stamp_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    """The previous run, or {} for anything unreadable.
 
-
-def note_throttled(last: dict, text: str) -> None:
-    """Notify at most once per INTERVAL_S.
-
-    Retrying and notifying are throttled separately: a broken sync should be
-    retried every session so a fix takes effect at once, while the message
-    about it should not repeat all day.
+    This is read before the guarded block, so a corrupt stamp must not be able
+    to raise: a non-dict payload used to reach .get() and a non-UTF-8 file used
+    to escape as a raw traceback, both aborting the session start.
     """
-    if time.time() - (last.get("notified_at") or 0) < INTERVAL_S:
-        return
-    note(text)
+    try:
+        data = json.loads(stamp_file.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
-def write_stamp(sha, scope: str, status, mode: str, throttle_from: dict | None = None) -> None:
+def should_notify(last: dict) -> bool:
+    """Retrying and notifying are throttled separately: retry as often as it is
+    cheap to, but do not repeat the same message all day."""
+    return time.time() - (last.get("notified_at") or 0) >= INTERVAL_S
+
+
+def write_stamp(sha, scope: str, status, mode: str, last=None, notified=False) -> None:
     """Record the run. `sha` None means "do not suppress the next attempt"."""
     record = {
         "at": time.time(),
@@ -92,10 +95,9 @@ def write_stamp(sha, scope: str, status, mode: str, throttle_from: dict | None =
         "status": status,
         "mode": mode,
     }
-    if throttle_from is not None:
-        prev = throttle_from.get("notified_at") or 0
+    if last is not None:
         record["notified_at"] = (
-            prev if time.time() - prev < INTERVAL_S else time.time()
+            time.time() if notified else (last.get("notified_at") or 0)
         )
     data_dir.mkdir(parents=True, exist_ok=True)
     stamp_file.write_text(json.dumps(record) + chr(10), encoding="utf-8")
@@ -106,6 +108,14 @@ def record_error(detail: str) -> None:
     error_log.write_text(
         time.strftime("%Y-%m-%d %H:%M:%S") + chr(10) + detail, encoding="utf-8"
     )
+
+
+def as_text(raw) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", "replace")
+    return raw
 
 
 def marketplace_root() -> Path | None:
@@ -174,8 +184,10 @@ try:
         # Nothing here can run the sync. Say so - at most once a day - and do
         # NOT record the sha: the next session must try again, or installing
         # Python would not recover for 24h even though we just promised it.
-        note_throttled(last, _runtime.shortfall_message(found))
-        write_stamp(None, scope, None, "python-too-old", throttle_from=last)
+        notify = should_notify(last)
+        if notify:
+            note(_runtime.shortfall_message(found))
+        write_stamp(None, scope, None, "python-too-old", last=last, notified=notify)
         sys.exit(0)
 
     args = argv + [
@@ -184,36 +196,53 @@ try:
         *([] if auto_apply else ["--check"]),
         *(["--scope", "project", "--project-dir", project_dir] if scope == "project" else []),
     ]
-    out, err, status = "", "", None
+    out, err, status, timed_out = "", "", None, False
     try:
         r = subprocess.run(
             args, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=CHILD_TIMEOUT_S,
         )
         out, err, status = r.stdout or "", r.stderr or "", r.returncode
-    except subprocess.TimeoutExpired:
-        # Stamp a timeout too (status null, as the old spawnSync reported it);
-        # skipping the stamp would retry this long run on every single session.
-        pass
+    except subprocess.TimeoutExpired as exc:
+        # Whatever it managed to say before being killed is the only clue.
+        timed_out = True
+        out, err = as_text(exc.stdout), as_text(exc.stderr)
 
     # The sync's own failures happen in that child, which is where every defect
-    # found in review lived. Reporting only exceptions raised *here* is what let
-    # them ship: the child exited non-zero, its traceback went to a stderr we
-    # discarded, and the stamp then suppressed retries for a day.
-    # 0 = applied, 2 = --check found differences. Anything else is a failure.
-    if status is not None and status not in (0, 2):
+    # found in the port lived. Reporting only exceptions raised *here* is what
+    # let them ship: the child exited non-zero, its traceback went to a stderr
+    # we discarded, and the stamp then suppressed retries for a day.
+    # 0 = applied, 2 = --check found differences. Anything else is a failure,
+    # and so is being killed at the timeout - which used to land in the success
+    # branch below because its status is None.
+    if timed_out or status not in (0, 2):
         record_error(
-            "apply_settings.py exited " + str(status) + chr(10)
+            ("apply_settings.py timed out after %ds" % CHILD_TIMEOUT_S if timed_out
+             else "apply_settings.py exited " + str(status)) + chr(10)
             + "--- stderr ---" + chr(10) + err.strip() + chr(10)
             + "--- stdout ---" + chr(10) + out.strip() + chr(10)
         )
-        note_throttled(
-            last,
-            "kibeen-skills 설정 동기화가 실패했습니다 (세션은 그대로 진행됩니다). "
-            "원인: " + str(error_log),
+        notify = should_notify(last)
+        if notify:
+            if out.strip().startswith("{"):
+                # The child's own message. apply_settings.fail() writes one to
+                # stdout naming what the user has to do ("claude CLI not
+                # found", "settings.json is not valid JSON"); replacing it with
+                # "see the log" buries the only actionable part.
+                sys.stdout.write(out)
+            else:
+                note(
+                    "kibeen-skills 설정 동기화가 "
+                    + ("시간 초과로 중단됐습니다" if timed_out else "실패했습니다")
+                    + " (세션은 그대로 진행됩니다). 원인: " + str(error_log)
+                )
+        # A timeout keeps the sha: retrying a run that takes CHILD_TIMEOUT_S
+        # would add that to every session start. A fast failure does not, so
+        # fixing its cause takes effect on the next session.
+        write_stamp(
+            sha if timed_out else None, scope, status,
+            "timeout" if timed_out else "failed", last=last, notified=notify,
         )
-        # No sha: retry next session, so a fixed cause recovers immediately.
-        write_stamp(None, scope, status, "failed", throttle_from=last)
         sys.exit(0)
 
     write_stamp(sha, scope, status, "apply" if auto_apply else "check")
@@ -224,12 +253,13 @@ except Exception:
     # either. Swallowing the traceback is what let four defects ship.
     try:
         record_error(traceback.format_exc())
-        note_throttled(
-            last,
-            "kibeen-skills 설정 동기화가 오류로 중단됐습니다 (세션은 그대로 진행됩니다). "
-            "원인: " + str(error_log),
-        )
-        write_stamp(None, scope, None, "crashed", throttle_from=last)
+        notify = should_notify(last)
+        if notify:
+            note(
+                "kibeen-skills 설정 동기화가 오류로 중단됐습니다 "
+                "(세션은 그대로 진행됩니다). 원인: " + str(error_log)
+            )
+        write_stamp(None, scope, None, "crashed", last=last, notified=notify)
     except Exception:
         pass
 
