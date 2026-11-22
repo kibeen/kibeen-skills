@@ -1,7 +1,9 @@
 # Runs the settings-sync tests on every PR and push to main.
-# Both OSes matter: the hook writes files and pipes JSON, and the bugs this
-# suite covers (console code page, CRLF translation) only appear on Windows,
-# while `python3` without `python` only appears on Linux.
+# Both OSes matter: the suite covers defects that surface on only one of them
+# (the Windows console code page, and CRLF translation in the files the hook
+# writes). It does not cover the hook's `python` / `python3` fallback - those
+# tests drive sys.executable and stub the interpreter probe - so that gap is
+# in the suite, not something this workflow can close.
 name: tests
 
 on:
@@ -12,12 +14,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   floor:
     # The minimum Python version is declared once, in scripts/_runtime.py.
     # CI reads it instead of naming it again: a second copy here would drift
     # the moment the floor moves, which is the failure this repo already had.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
@@ -38,16 +45,26 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ["${{ needs.floor.outputs.version }}", "3.x"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Check the suite is collected
+        # discover exits 0 when it finds nothing, so a suite that moved out of
+        # the search path would leave CI green with nothing run.
+        run: >
+          python -c "import unittest, sys;
+          n = unittest.defaultTestLoader.discover('tests').countTestCases();
+          print('collected', n, 'tests');
+          sys.exit(0 if n else 'discover collected no tests: the suite is not where CI looks')"
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
   marketplace-json:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: marketplace.json and plugin.json parse
@@ -55,3 +72,25 @@ jobs:
           python -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
           python -c "import json;json.load(open('plugins/kibeen-skills/.claude-plugin/plugin.json'))"
           python -c "import json;json.load(open('plugins/kibeen-skills/hooks/hooks.json'))"
+
+  tests-passed:
+    # This is the only check worth requiring on the branch, for two reasons.
+    # The matrix check names embed the floor ("test (ubuntu-latest, 3.11)"),
+    # so requiring those would write the version a third time - into branch
+    # settings, which no test in this repo can guard. And `needs: floor` means
+    # a failed floor job leaves the matrix skipped, which GitHub counts as a
+    # passing required check: zero tests run, green gate. Checking each result
+    # explicitly under always() is what closes that.
+    needs: [floor, test, marketplace-json]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job succeeded
+        run: |
+          echo "floor=${{ needs.floor.result }}"
+          echo "test=${{ needs.test.result }}"
+          echo "marketplace-json=${{ needs['marketplace-json'].result }}"
+          test "${{ needs.floor.result }}" = "success"
+          test "${{ needs.test.result }}" = "success"
+          test "${{ needs['marketplace-json'].result }}" = "success"
