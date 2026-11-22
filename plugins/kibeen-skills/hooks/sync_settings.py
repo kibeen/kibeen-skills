@@ -119,22 +119,29 @@ try:
         *([] if auto_apply else ["--check"]),
         *(["--scope", "project", "--project-dir", project_dir] if scope == "project" else []),
     ]
-    r = subprocess.run(
-        args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=110
-    )
+    out, status = "", None
+    try:
+        r = subprocess.run(
+            args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=110
+        )
+        out, status = r.stdout or "", r.returncode
+    except subprocess.TimeoutExpired:
+        # Stamp a timeout too (status null, as the old spawnSync reported it);
+        # skipping the stamp would retry this 110s run on every single session.
+        pass
     data_dir.mkdir(parents=True, exist_ok=True)
     stamp_file.write_text(
         json.dumps({
             "at": time.time(),
             "sha": sha,
             "scope": scope,
-            "status": r.returncode,
+            "status": status,
             "mode": "apply" if auto_apply else "check",
-        }) + "\n",
+        }) + chr(10),
         encoding="utf-8",
     )
-    if r.stdout and r.stdout.strip().startswith("{"):
-        sys.stdout.write(r.stdout)
+    if out.strip().startswith("{"):
+        sys.stdout.write(out)
 except Exception:
     # A failed sync must never get in the way of starting a session.
     pass

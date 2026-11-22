@@ -38,7 +38,7 @@
   },
   "outputStyle": "Concise",
   "retired": {
-    "//": "apply-settings.mjs removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",
+    "//": "apply_settings.py removes these from every machine; plugins of kibeen-skills that are no longer in its marketplace.json are removed too.",
     "marketplaces": [
       "agent-browser",
       "gsd-core",

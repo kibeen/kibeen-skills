@@ -41,6 +41,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# The hook's parent reads this process' stdout as UTF-8, and the Korean text below
+# would otherwise be written in the console code page (cp949/cp1252): mojibake on
+# decode, or UnicodeEncodeError when the page cannot represent it. Node was always
+# UTF-8 here, so pin it. hook_message() additionally escapes to ASCII.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError, ValueError):
+        pass
+
 ROOT = Path(__file__).resolve().parent.parent
 SELF = ROOT / "scripts" / "apply_settings.py"
 
@@ -112,12 +122,24 @@ def source_arg(src: dict | None) -> str | None:
 
 
 def read_settings() -> dict:
+    """Parse settings.json, or stop.
+
+    Returning {} for an unparseable file would make the merge below write a file
+    holding only this repo's keys, silently dropping everything the machine had
+    (the old JS threw instead). utf-8-sig tolerates the BOM that Notepad and
+    PowerShell 5.1 add.
+    """
     if not file_.exists():
         return {}
     try:
-        return read_json(file_)
-    except json.JSONDecodeError:
-        return {}
+        return json.loads(file_.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(
+            f"{file_} is not valid JSON ({e}); refusing to overwrite it. "
+            "Fix or move the file, then run this again.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 diffs: list[str] = []  # human-readable list of what differs from the repo
@@ -127,8 +149,9 @@ _backed_up = False
 
 
 def stamp() -> str:
-    # Matches the old JS format: ISO 8601 with : and . replaced by -
-    return re.sub(r"[:.]", "-", datetime.now(timezone.utc).isoformat(timespec="milliseconds"))
+    # Matches the old JS format: new Date().toISOString() with : and . replaced by -
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H-%M-%S-") + f"{now.microsecond // 1000:03d}Z"
 
 
 def backup_once() -> None:
@@ -194,7 +217,9 @@ def summary() -> str:
 
 
 def hook_message(text: str) -> None:
-    sys.stdout.write(json.dumps({"systemMessage": text}, ensure_ascii=False) + "\n")
+    # ensure_ascii keeps the payload pure ASCII, so it survives any stdout
+    # encoding; the parent JSON-parses it back into the Korean text.
+    sys.stdout.write(json.dumps({"systemMessage": text}) + "\n")
 
 
 # ---- 1. clean-up ---------------------------------------------------------
@@ -370,7 +395,9 @@ if memo_next != memo_now:
         if memo_file.exists():
             shutil.copy2(memo_file, f"{memo_file}.bak-{stamp()}")
         dir_.mkdir(parents=True, exist_ok=True)
-        memo_file.write_text(memo_next, encoding="utf-8")
+        # newline="" keeps the bytes as-is; text mode would rewrite the whole
+        # file to CRLF on Windows, user content outside our markers included.
+        memo_file.write_text(memo_next, encoding="utf-8", newline="")
         log(f"CLAUDE.md instructions {what}: {memo_file}")
     elif not CHECK:
         verb = {"removed": "remove", "added": "add"}.get(what, "update")

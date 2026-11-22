@@ -131,5 +131,96 @@ class ApplySettingsTest(unittest.TestCase):
                 )
 
 
+class HookPathTest(unittest.TestCase):
+    """The --hook path and the hook script itself: the deployed code path.
+
+    These cover the regressions the Node port introduced, all of which only
+    show up through the hook, never through a plain run.
+    """
+
+    def machine(self, settings: dict | None = None) -> Machine:
+        m = Machine(settings)
+        self.addCleanup(m.cleanup)
+        return m
+
+    def test_hook_json_is_utf8_decodable_under_a_legacy_code_page(self):
+        """The hook's parent reads this stream as UTF-8.
+
+        Written in the console code page (cp949 on Korean Windows, cp1252 on
+        English) the Korean systemMessage either mojibakes or raises, so the
+        user gets a message of U+FFFD or no message at all.
+        """
+        m = self.machine()
+        env = dict(m.env, PYTHONIOENCODING="cp949")
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "--hook"],
+            capture_output=True, env=env,  # bytes, not text: we assert on the encoding
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout.decode("utf-8"))  # must not raise
+        self.assertIn("kibeen-skills", payload["systemMessage"])
+        self.assertNotIn(chr(0xFFFD), payload["systemMessage"])
+
+    def test_unparseable_settings_stop_the_run_and_are_left_alone(self):
+        """Treating a broken settings.json as {} would drop every key the
+        machine had and write a file holding only this repo's three."""
+        NL = chr(10)
+        broken = "{" + NL + '  "theme": "dark",' + NL + '  "model": "x",' + NL + "}"
+        m = self.machine()
+        target = m.dir / "settings.json"
+        target.write_text(broken, encoding="utf-8")
+        r = m.run()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not valid JSON", r.stderr)
+        self.assertEqual(target.read_text(encoding="utf-8"), broken)
+
+    def test_a_utf8_bom_is_tolerated(self):
+        m = self.machine()
+        (m.dir / "settings.json").write_text(
+            json.dumps({"theme": "dark"}), encoding="utf-8-sig"
+        )
+        r = m.run()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(m.read()["theme"], "dark")
+
+    def test_user_content_in_claude_md_keeps_its_bytes(self):
+        """README promises everything outside the markers is untouched, so the
+        file must not come back rewritten to CRLF."""
+        m = self.machine()
+        memo = m.dir / "CLAUDE.md"
+        NL = chr(10)
+        head = "# My notes" + NL * 2 + "- one" + NL + "- two" + NL * 2
+        memo.write_bytes(head.encode("utf-8"))
+        m.run()
+        after = memo.read_bytes()
+        self.assertTrue(after.startswith(head.encode("utf-8")), after[:60])
+        self.assertNotIn(bytes([13, 10]), after)
+
+    def test_the_hook_script_emits_the_hook_json(self):
+        """End-to-end through hooks/sync_settings.py, which locates the
+        marketplace checkout and relays the child's stdout."""
+        m = self.machine()
+        root = m.dir / "plugins" / "marketplaces" / "kibeen-skills"
+        for rel in (
+            Path("scripts") / "apply_settings.py",
+            Path("settings") / "claude-settings.json",
+            Path("settings") / "CLAUDE.kibeen.md",
+            Path(".claude-plugin") / "marketplace.json",
+        ):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_bytes((ROOT / rel).read_bytes())
+        hook = ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py"
+        r = subprocess.run(
+            [sys.executable, str(hook)],
+            capture_output=True, text=True, encoding="utf-8", env=m.env,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout)
+        self.assertIn("kibeen-skills", payload["systemMessage"])
+        self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
+        stamp = m.dir / "plugins" / "data" / "kibeen-skills" / "last-sync-user.json"
+        self.assertTrue(stamp.exists(), "a run must stamp, or it repeats every session")
+
+
 if __name__ == "__main__":
     unittest.main()
