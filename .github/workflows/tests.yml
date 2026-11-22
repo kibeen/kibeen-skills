@@ -56,27 +56,36 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Confirm the requested interpreter is the one running
+      - name: Confirm the floor leg is running the declared floor
         # setup-python only warns on an empty version and falls back to the
         # preinstalled one. Without this, a floor job that produced nothing
         # would leave a green "latest on both OSes" matrix that never ran the
         # floor at all.
+        #
+        # The comparison is against the floor, not against what this leg asked
+        # for. Asking and getting the same answer proves nothing if the thing
+        # asked for was wrong: a matrix entry edited to a literal above the
+        # floor would satisfy want == got, satisfy the at-or-above check
+        # below, and slip past the drift guard, which only looks for versions
+        # lower than the floor.
         shell: bash
         run: |
           want='${{ matrix.python-version }}'
+          floor='${{ needs.floor.outputs.version }}'
           got=$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')
-          echo "requested '$want', running $got"
+          echo "requested '$want', declared floor '$floor', running $got"
           if [ -z "$want" ]; then
             echo "no version was requested: the floor job produced nothing"
             exit 1
           fi
-          if [ "$want" != "3.x" ] && [ "$want" != "$got" ]; then
-            echo "setup-python installed $got, not the requested $want"
+          if [ "$want" != "3.x" ] && [ "$got" != "$floor" ]; then
+            echo "this leg runs $got, which is not the declared floor $floor"
             exit 1
           fi
       - name: Confirm the interpreter is at or above the declared floor
         # Covers the "3.x" leg, whose requested version says nothing about
         # which release it resolved to.
+        shell: bash
         run: >
           python -c "import sys;
           floor = tuple(int(n) for n in '${{ needs.floor.outputs.version }}'.split('.'));
@@ -85,6 +94,7 @@ jobs:
       - name: Check the suite is collected
         # discover exits 0 when it finds nothing, so a suite that moved out of
         # the search path would leave CI green with nothing run.
+        shell: bash
         run: >
           python -c "import unittest, sys;
           n = unittest.defaultTestLoader.discover('tests').countTestCases();
