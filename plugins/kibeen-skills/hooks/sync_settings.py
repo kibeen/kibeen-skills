@@ -57,7 +57,13 @@ stamp_file = data_dir / f"last-sync-{stamp_key}.json"
 
 SCRIPT_REL = Path("scripts") / "apply_settings.py"
 
-CHILD_TIMEOUT_S = 90  # leaves room under the 120s SessionStart hook timeout
+HOOK_TIMEOUT_S = 120        # hooks.json; the whole run must fit inside it
+CLI_PROBE_TIMEOUT_S = 5     # locating the marketplace through the claude CLI
+CHILD_TIMEOUT_S = 90        # the sync itself
+# A failed attempt this slow is not retried next session: doing so would add
+# its cost to every session start. A fast failure is retried, so fixing its
+# cause takes effect at once.
+CHEAP_FAILURE_S = 5
 error_log = data_dir / "last-error.log"
 
 
@@ -126,7 +132,7 @@ def marketplace_root() -> Path | None:
     try:
         ls = subprocess.run(
             ["claude", "plugin", "marketplace", "list", "--json"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=CLI_PROBE_TIMEOUT_S,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -179,6 +185,7 @@ try:
     sys.path.insert(0, str(root / "scripts"))
     import _runtime
 
+    started = time.time()
     argv, found = _runtime.survey()
     if argv is None:
         # Nothing here can run the sync. Say so - at most once a day - and do
@@ -187,16 +194,22 @@ try:
         notify = should_notify(last)
         if notify:
             note(_runtime.shortfall_message(found))
-        write_stamp(None, scope, None, "python-too-old", last=last, notified=notify)
+        # Probing every candidate is not free either, so the same cost rule
+        # applies: back off when the attempt was slow.
+        cheap = time.time() - started < CHEAP_FAILURE_S
+        write_stamp(None if cheap else sha, scope, None, "python-too-old",
+                    last=last, notified=notify)
         sys.exit(0)
 
     args = argv + [
+        "-B",  # no __pycache__ in the user checkout
         str(root / SCRIPT_REL),
         "--hook",
         *([] if auto_apply else ["--check"]),
         *(["--scope", "project", "--project-dir", project_dir] if scope == "project" else []),
     ]
     out, err, status, timed_out = "", "", None, False
+    started = time.time()
     try:
         r = subprocess.run(
             args, capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -236,11 +249,14 @@ try:
                     + ("시간 초과로 중단됐습니다" if timed_out else "실패했습니다")
                     + " (세션은 그대로 진행됩니다). 원인: " + str(error_log)
                 )
-        # A timeout keeps the sha: retrying a run that takes CHILD_TIMEOUT_S
-        # would add that to every session start. A fast failure does not, so
-        # fixing its cause takes effect on the next session.
+        # Retry only what is cheap to retry. A timeout costs CHILD_TIMEOUT_S
+        # and a slow crash nearly as much; repeating either every session would
+        # delay every session start, which is what this hook must never do.
+        # Anything that failed fast (missing CLI, bad settings.json) is retried,
+        # so fixing the cause takes effect on the next session.
+        cheap = not timed_out and time.time() - started < CHEAP_FAILURE_S
         write_stamp(
-            sha if timed_out else None, scope, status,
+            None if cheap else sha, scope, status,
             "timeout" if timed_out else "failed", last=last, notified=notify,
         )
         sys.exit(0)

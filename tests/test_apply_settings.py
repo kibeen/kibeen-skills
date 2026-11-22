@@ -21,6 +21,20 @@ fragment = json.loads((ROOT / "settings" / "claude-settings.json").read_text(enc
 catalog = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
 
 
+def below_floor_versions(line, floor):
+    """Versions named on `line` that sit below `floor`.
+
+    The repo-wide guard and its own spelling regression both go through this,
+    so narrowing the matching cannot leave the regression test green - the
+    previous version copied the regex and passed against a reverted guard.
+    """
+    lowered = line.lower()
+    if "python" not in lowered and not re.search(r"requires?\s+\d+\.\d+", lowered):
+        return []
+    found = re.findall(r"(\d+)\.(\d+)", line)
+    found += re.findall(r"python(\d)(\d+)", line, re.IGNORECASE)
+    return [(int(a), int(b)) for a, b in found if (int(a), int(b)) < tuple(floor)]
+
 class Machine:
     """A throwaway Claude config dir with no `claude` CLI reachable."""
 
@@ -258,7 +272,6 @@ class RuntimeFloorTest(unittest.TestCase):
         catches the spelling I happened to think of is not a guard.
         """
         floor = self.rt.floor_str()
-        version = re.compile(r"(\d+)\.(\d+)")
         tracked = subprocess.run(
             ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True,
         ).stdout.decode("utf-8").split(chr(0))
@@ -272,20 +285,9 @@ class RuntimeFloorTest(unittest.TestCase):
                 continue
             scanned += 1
             for lineno, line in enumerate(text.split(chr(10)), 1):
-                # Line-scoped so an unrelated number cannot trip it: any line
-                # mentioning python in any spelling (python3.9, Python 3.9,
-                # python-version: "3.9", PYTHON_VERSION=3.9), or stating a
-                # requirement (requires 3.9+).
-                lowered = line.lower()
-                if "python" not in lowered and not re.search(r"requires?\s+\d+\.\d+", lowered):
-                    continue
-                found = version.findall(line)
-                found += re.findall(r"python(\d)(\d+)", line, re.IGNORECASE)
-                for major, minor in found:
-                    if (int(major), int(minor)) >= self.rt.MIN_PYTHON:
-                        continue  # an upgrade hint may name a newer version
+                for major, minor in below_floor_versions(line, self.rt.MIN_PYTHON):
                     self.fail(
-                        "%s:%d names %s.%s, below the declared floor %s; update "
+                        "%s:%d names %d.%d, below the declared floor %s; update "
                         "MIN_PYTHON in scripts/_runtime.py instead of hardcoding "
                         "a version%s  %s" % (rel, lineno, major, minor, floor,
                                              chr(10), line.strip())
@@ -472,13 +474,23 @@ class InterpreterSurveyTest(unittest.TestCase):
         self.assertIsNone(self.rt._probe(["definitely-not-a-python-xyz"]))
 
     def test_the_probe_budget_fits_the_hook_timeout(self):
-        """Probing every candidate plus the sync must finish inside the 120s
-        SessionStart timeout."""
-        worst = len(self.rt.candidates()) * self.rt.PROBE_TIMEOUT_S
+        """Everything the hook may spend before giving up has to fit inside the
+        SessionStart timeout, including locating the marketplace through the
+        claude CLI - which the earlier version of this test left out."""
         hook_src = (ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py").read_text(
             encoding="utf-8")
-        child = int(re.search(r"CHILD_TIMEOUT_S = (\d+)", hook_src).group(1))
-        self.assertLess(worst + child, 120, "probe %ds + child %ds" % (worst, child))
+
+        def const(name):
+            return int(re.search(name + r" = (\d+)", hook_src).group(1))
+
+        probes = len(self.rt.candidates()) * self.rt.PROBE_TIMEOUT_S
+        worst = const("CLI_PROBE_TIMEOUT_S") + probes + const("CHILD_TIMEOUT_S")
+        self.assertLess(
+            worst, const("HOOK_TIMEOUT_S"),
+            "cli %ds + probes %ds + child %ds" % (
+                const("CLI_PROBE_TIMEOUT_S"), probes, const("CHILD_TIMEOUT_S")),
+        )
+
     def test_an_older_running_interpreter_is_replaced_by_a_candidate(self):
         """The whole point: a machine whose `python` is too old still syncs
         through a newer install."""
@@ -497,27 +509,29 @@ class InterpreterSurveyTest(unittest.TestCase):
         self.assertEqual(calls[0], "python99.4", "newest candidate is tried first")
 
     def test_the_drift_guard_catches_the_spellings_ci_files_use(self):
-        """A guard that only matches the spelling I thought of is not a guard."""
+        """Drives the guard helper itself, not a copy of its regex."""
         floor_major, floor_minor = self.rt.MIN_PYTHON
         low = "%d.%d" % (floor_major, floor_minor - 2)
         for line in (
-            'python' + low + ' is required',
-            'sudo dnf install python' + low.replace('.', ''),
+            "python" + low + " is required",
+            "sudo dnf install python" + low.replace(".", ""),
             '  python-version: "' + low + '"',
-            'PYTHON_VERSION=' + low,
-            'Python ' + low + '+',
-            'requires ' + low + '+',
+            "PYTHON_VERSION=" + low,
+            "Python " + low + "+",
+            "requires " + low + "+",
         ):
             with self.subTest(line=line):
-                lowered = line.lower()
-                hit = "python" in lowered or re.search(r"requires?\s+\d+\.\d+", lowered)
-                self.assertTrue(hit, "line would not even be scanned")
-                found = [(int(a), int(b)) for a, b in
-                         re.findall(r"(\d+)\.(\d+)", line)]
-                found += [(int(a), int(b)) for a, b in
-                          re.findall(r"python(\d)(\d+)", line, re.IGNORECASE)]
-                self.assertTrue(any(v < self.rt.MIN_PYTHON for v in found),
-                                "no below-floor version detected")
+                self.assertTrue(
+                    below_floor_versions(line, self.rt.MIN_PYTHON),
+                    "the guard would not flag this spelling",
+                )
+
+    def test_the_guard_does_not_flag_unrelated_numbers(self):
+        for line in ("version 1.2 of the spec", "see section 3.9 below",
+                     "Python " + self.rt.floor_str(), "timeout 2.5 seconds"):
+            with self.subTest(line=line):
+                self.assertEqual(below_floor_versions(line, self.rt.MIN_PYTHON), [])
+
 
 class HookFailurePathTest(unittest.TestCase):
     """Every case here exited 0 with no output before this change, which is how
@@ -621,6 +635,21 @@ class HookFailurePathTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(r.stderr, "", "no raw traceback may reach the user")
                 self.assertTrue(c.stamp.get("sha"), "the run still completes and stamps")
+    def test_a_slow_failure_is_not_retried_every_session(self):
+        """A child that fails slowly would otherwise add its cost to every
+        session start, with the notice throttled to once a day - a silent
+        regression against main, which backed off after any attempt."""
+        c = self.checkout("import sys,time\ntime.sleep(6)\nsys.exit(1)\n")
+        c.run()
+        self.assertEqual(c.stamp.get("mode"), "failed")
+        self.assertTrue(c.stamp.get("sha"), "a slow failure must back off")
+
+    def test_a_fast_failure_is_still_retried_next_session(self):
+        """The common causes - missing claude CLI, unparseable settings.json -
+        fail in well under a second, so fixing them takes effect at once."""
+        c = self.checkout("import sys; sys.exit(1)\n")
+        c.run()
+        self.assertIsNone(c.stamp.get("sha"))
 
 if __name__ == "__main__":
     unittest.main()
