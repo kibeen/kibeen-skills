@@ -37,8 +37,15 @@ class Machine:
             "HOME": str(self.dir),
             "USERPROFILE": str(self.dir),
         }
-        # cmd.exe and the Windows loader still need these; `claude` stays unreachable.
-        for key in ("SYSTEMROOT", "SystemRoot", "COMSPEC", "PATHEXT"):
+        # cmd.exe, the Windows loader and the shell cache need these; `claude`
+        # stays unreachable because PATH holds only the empty bin dir. Without
+        # SystemDrive/ProgramData, MSIX Python writes its icon cache into the
+        # repo as "%SystemDrive%/ProgramData/..." - that debris got committed
+        # once already.
+        for key in (
+            "SYSTEMROOT", "SystemRoot", "SystemDrive", "ProgramData",
+            "COMSPEC", "PATHEXT", "TEMP", "TMP",
+        ):
             if key in os.environ:
                 self.env[key] = os.environ[key]
 
@@ -220,6 +227,13 @@ class HookPathTest(unittest.TestCase):
         self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
         stamp = m.dir / "plugins" / "data" / "kibeen-skills" / "last-sync-user.json"
         self.assertTrue(stamp.exists(), "a run must stamp, or it repeats every session")
+
+    def test_settings_json_is_written_with_lf(self):
+        """Node wrote LF. This file is the one the newline="" fix was missed on
+        twice, so assert the bytes rather than trusting the call site."""
+        m = self.machine()
+        m.run()
+        self.assertNotIn(bytes([13, 10]), (m.dir / "settings.json").read_bytes())
 
 
 if __name__ == "__main__":
