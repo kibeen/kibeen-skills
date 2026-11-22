@@ -153,6 +153,22 @@ class ApplySettingsTest(unittest.TestCase):
                     f"{plugin_id} is a dependency but not in marketplace.json",
                 )
 
+    def test_the_hooks_json_parses_and_runs_the_hook_script(self):
+        """CI parsed this file in a job of its own, with the locale's default
+        encoding. Reading it here gets both OSes and explicit utf-8, and lets
+        the command be checked rather than only the syntax."""
+        path = ROOT / "plugins" / "kibeen-skills" / "hooks" / "hooks.json"
+        hooks = json.loads(path.read_text(encoding="utf-8"))
+        entries = hooks["hooks"]["SessionStart"]
+        commands = [h["command"] for e in entries for h in e["hooks"]]
+        self.assertTrue(commands, "SessionStart runs nothing")
+        for command in commands:
+            self.assertIn("hooks/sync_settings.py", command)
+            self.assertIn(
+                "python3", command,
+                "a machine with no `python` on PATH needs the python3 fallback",
+            )
+
 
 class HookPathTest(unittest.TestCase):
     """The --hook path and the hook script itself: the deployed code path.

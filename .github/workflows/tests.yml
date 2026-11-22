@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseding a PR push is free; cancelling a main push would leave a commit
+  # on the default branch with no result of its own.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   floor:
@@ -31,8 +33,12 @@ jobs:
       - uses: actions/checkout@v4
       - id: read
         run: |
-          floor=$(python -c 'import sys; sys.path.insert(0, "scripts"); import _runtime; print(_runtime.floor_str())')
+          floor=$(python3 -c 'import sys; sys.path.insert(0, "scripts"); import _runtime; print(_runtime.floor_str())')
           echo "declared floor: $floor"
+          case "$floor" in
+            [0-9]*.[0-9]*) ;;
+            *) echo "_runtime.floor_str() gave no usable version: '$floor'"; exit 1 ;;
+          esac
           echo "version=$floor" >> "$GITHUB_OUTPUT"
 
   test:
@@ -51,6 +57,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Confirm the requested interpreter is the one running
+        # setup-python only warns on an empty version and falls back to the
+        # preinstalled one. Without this, a floor job that produced nothing
+        # would leave a green "latest on both OSes" matrix that never ran the
+        # floor at all.
+        shell: bash
+        run: |
+          want='${{ matrix.python-version }}'
+          got=$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+          echo "requested '$want', running $got"
+          if [ -z "$want" ]; then
+            echo "no version was requested: the floor job produced nothing"
+            exit 1
+          fi
+          if [ "$want" != "3.x" ] && [ "$want" != "$got" ]; then
+            echo "setup-python installed $got, not the requested $want"
+            exit 1
+          fi
       - name: Check the suite is collected
         # discover exits 0 when it finds nothing, so a suite that moved out of
         # the search path would leave CI green with nothing run.
@@ -62,26 +86,15 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
-  marketplace-json:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: marketplace.json and plugin.json parse
-        run: |
-          python -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
-          python -c "import json;json.load(open('plugins/kibeen-skills/.claude-plugin/plugin.json'))"
-          python -c "import json;json.load(open('plugins/kibeen-skills/hooks/hooks.json'))"
-
   tests-passed:
     # This is the only check worth requiring on the branch, for two reasons.
-    # The matrix check names embed the floor ("test (ubuntu-latest, 3.11)"),
-    # so requiring those would write the version a third time - into branch
-    # settings, which no test in this repo can guard. And `needs: floor` means
-    # a failed floor job leaves the matrix skipped, which GitHub counts as a
-    # passing required check: zero tests run, green gate. Checking each result
-    # explicitly under always() is what closes that.
-    needs: [floor, test, marketplace-json]
+    # The matrix check names carry the floor in them, so requiring those would
+    # write the version a third time - into branch settings, which no test in
+    # this repo can guard. And `needs: floor` means a failed floor job leaves
+    # the matrix skipped, which GitHub counts as a passing required check:
+    # zero tests run, green gate. Checking each result explicitly under
+    # always() is what closes that.
+    needs: [floor, test]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -90,7 +103,5 @@ jobs:
         run: |
           echo "floor=${{ needs.floor.result }}"
           echo "test=${{ needs.test.result }}"
-          echo "marketplace-json=${{ needs['marketplace-json'].result }}"
           test "${{ needs.floor.result }}" = "success"
           test "${{ needs.test.result }}" = "success"
-          test "${{ needs['marketplace-json'].result }}" = "success"
