@@ -1,0 +1,57 @@
+# Runs the settings-sync tests on every PR and push to main.
+# Both OSes matter: the hook writes files and pipes JSON, and the bugs this
+# suite covers (console code page, CRLF translation) only appear on Windows,
+# while `python3` without `python` only appears on Linux.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  floor:
+    # The minimum Python version is declared once, in scripts/_runtime.py.
+    # CI reads it instead of naming it again: a second copy here would drift
+    # the moment the floor moves, which is the failure this repo already had.
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          floor=$(python -c 'import sys; sys.path.insert(0, "scripts"); import _runtime; print(_runtime.floor_str())')
+          echo "declared floor: $floor"
+          echo "version=$floor" >> "$GITHUB_OUTPUT"
+
+  test:
+    # The floor itself must be exercised, or a too-new API hides behind it.
+    # "3.x" catches the opposite drift: code that only works on the old floor.
+    needs: floor
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["${{ needs.floor.outputs.version }}", "3.x"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+  marketplace-json:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: marketplace.json and plugin.json parse
+        run: |
+          python -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
+          python -c "import json;json.load(open('plugins/kibeen-skills/.claude-plugin/plugin.json'))"
+          python -c "import json;json.load(open('plugins/kibeen-skills/hooks/hooks.json'))"
