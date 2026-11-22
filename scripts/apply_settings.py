@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Bring this machine's Claude Code user settings in line with settings/claude-settings.json
+(~/.claude/settings.json, or $CLAUDE_CONFIG_DIR/settings.json).
+
+1. Clean up (uses the `claude` CLI):
+   - removes the marketplaces listed in `retired.marketplaces` (this also uninstalls their plugins),
+   - uninstalls the plugins listed in `retired.plugins`,
+   - uninstalls kibeen-skills plugins that are no longer in .claude-plugin/marketplace.json.
+2. Merge:
+   - extraKnownMarketplaces: entries from the repo file replace same-named entries.
+   - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
+     Entries for kibeen-skills plugins that left the catalog are dropped.
+   - outputStyle: set when this machine has none; a style chosen on this machine stays.
+   - Every other key in settings.json is left as is. A timestamped backup is written first.
+3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
+   (other content untouched, backup first).
+
+Usage: python scripts/apply_settings.py [--scope user|project] [--project-dir DIR]
+                                        [--dry-run | --check] [--hook] [--marketplaces-only]
+  --scope project      apply to one project instead of the user: <DIR>/.claude/settings.json and
+                       <DIR>/.claude/CLAUDE.md; marketplaces and plugins are added/installed with
+                       --scope project (project-enabled plugins are not fetched on startup).
+                       DIR defaults to $CLAUDE_PROJECT_DIR, then the current directory.
+  --dry-run            print every step, change nothing
+  --check              print only what differs, change nothing; exit 2 when something differs
+  --hook               print only a Claude Code hook JSON {"systemMessage": ...} (or nothing when in sync)
+  --marketplaces-only  skip enabling plugins and the output style (clean-up and marketplace
+                       declarations still run)
+
+Python 3.9+, standard library only. No Node.js required.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SELF = ROOT / "scripts" / "apply_settings.py"
+
+
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+fragment = read_json(ROOT / "settings" / "claude-settings.json")
+catalog = read_json(ROOT / ".claude-plugin" / "marketplace.json")
+
+
+def arg_val(name: str) -> str | None:
+    if name in sys.argv:
+        i = sys.argv.index(name)
+        if i > 0 and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    return None
+
+
+SCOPE = arg_val("--scope") or "user"
+if SCOPE not in ("user", "project"):
+    print("--scope must be user or project", file=sys.stderr)
+    sys.exit(1)
+
+PROJECT_DIR = Path(
+    arg_val("--project-dir") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+).resolve()
+config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude"))
+dir_ = (PROJECT_DIR / ".claude") if SCOPE == "project" else config_dir
+file_ = dir_ / "settings.json"
+scope_args = ["--scope", SCOPE]
+
+CHECK = "--check" in sys.argv
+HOOK = "--hook" in sys.argv
+DRY = CHECK or "--dry-run" in sys.argv
+MARKETS_ONLY = "--marketplaces-only" in sys.argv
+
+
+def log(*parts: object) -> None:
+    if not HOOK:
+        print(*parts)
+
+
+def same_path(a, b) -> bool:
+    try:
+        pa, pb = Path(a or "").resolve(), Path(b or "").resolve()
+    except (OSError, ValueError):
+        return False
+    if sys.platform == "win32":
+        return str(pa).lower() == str(pb).lower()
+    return pa == pb
+
+
+def in_scope(p: dict) -> bool:
+    if (p.get("scope") or "user") != SCOPE:
+        return False
+    return SCOPE != "project" or same_path(p.get("projectPath"), PROJECT_DIR)
+
+
+def source_arg(src: dict | None) -> str | None:
+    if not src:
+        return None
+    if src.get("source") == "github":
+        return src.get("repo")
+    if src.get("source") in ("git", "url"):
+        return src.get("url")
+    return None
+
+
+def read_settings() -> dict:
+    if not file_.exists():
+        return {}
+    try:
+        return read_json(file_)
+    except json.JSONDecodeError:
+        return {}
+
+
+diffs: list[str] = []  # human-readable list of what differs from the repo
+failures = 0
+backup_path = ""
+_backed_up = False
+
+
+def stamp() -> str:
+    # Matches the old JS format: ISO 8601 with : and . replaced by -
+    return re.sub(r"[:.]", "-", datetime.now(timezone.utc).isoformat(timespec="milliseconds"))
+
+
+def backup_once() -> None:
+    global _backed_up, backup_path
+    if _backed_up or not file_.exists():
+        return
+    backup_path = f"{file_}.bak-{stamp()}"
+    shutil.copy2(file_, backup_path)
+    _backed_up = True
+    log(f"Backup: {backup_path}")
+
+
+def claude(args: list[str]) -> tuple[bool, str]:
+    """Run the `claude` CLI. On Windows it may be installed as claude.cmd, which
+    only runs through the shell, so fall back to a shell invocation."""
+    try:
+        r = subprocess.run(
+            ["claude", *args], capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+    except FileNotFoundError:
+        if sys.platform != "win32":
+            return False, ""
+        cmd = " ".join(
+            a if re.fullmatch(r"[\w@./:-]+", a) else f'"{a}"' for a in ["claude", *args]
+        )
+        try:
+            r = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            return False, ""
+    except OSError:
+        return False, ""
+    return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+
+
+def claude_json(args: list[str]):
+    ok, out = claude(args)
+    if not ok:
+        return None
+    i = out.find("[")
+    if i < 0:
+        return None
+    try:
+        return json.loads(out[i:])
+    except json.JSONDecodeError:
+        return None
+
+
+def summary() -> str:
+    def count(pattern: str) -> int:
+        return sum(1 for d in diffs if re.match(pattern, d))
+
+    pairs = [
+        (count(r"^install "), "설치"),
+        (count(r"^(remove marketplace|uninstall)"), "정리"),
+        (count(r"^(marketplace |add marketplace)"), "마켓플레이스 선언"),
+        (count(r"^plugin .*: (enabled|removed)"), "플러그인 켜기·끄기"),
+        (count(r"^outputStyle: "), "출력 스타일"),
+        (count(r"^CLAUDE\.md "), "지침"),
+    ]
+    return ", ".join(f"{label} {n}건" for n, label in pairs if n)
+
+
+def hook_message(text: str) -> None:
+    sys.stdout.write(json.dumps({"systemMessage": text}, ensure_ascii=False) + "\n")
+
+
+# ---- 1. clean-up ---------------------------------------------------------
+retired = fragment.get("retired") or {}
+in_catalog = {f"{p['name']}@{catalog['name']}" for p in catalog["plugins"]}
+
+
+def left_catalog(plugin_id: str) -> bool:
+    return plugin_id.endswith(f"@{catalog['name']}") and plugin_id not in in_catalog
+
+
+installed = claude_json(["plugin", "list", "--json"])
+known = claude_json(["plugin", "marketplace", "list", "--json"])
+plan: list[dict] = []
+
+if installed is None or known is None:
+    log("claude CLI not available: skipping clean-up of retired marketplaces and plugins.")
+else:
+    declared = read_settings().get("extraKnownMarketplaces") or {}
+    known_names = {m["name"] for m in known}
+    # A project only owns the marketplaces its own settings declare.
+    owned_names = set(declared) if SCOPE == "project" else (known_names | set(declared))
+    for m in retired.get("marketplaces") or []:
+        if m in owned_names:
+            plan.append({
+                "what": f"remove marketplace {m}",
+                "args": ["plugin", "marketplace", "remove", m, *scope_args],
+            })
+    gone_markets = {p["args"][3] for p in plan}
+    retired_plugins = set(retired.get("plugins") or [])
+    mine = [p for p in installed if in_scope(p)]
+    installed_ids = {p["id"] for p in mine}
+    # Renamed plugins: install the new id before the old one is removed below.
+    for old_id, new_id in (fragment.get("renamed") or {}).items():
+        if old_id in installed_ids and new_id not in installed_ids:
+            plan.append({
+                "what": f"install {new_id} (renamed from {old_id})",
+                "args": ["plugin", "install", new_id, *scope_args],
+            })
+    for p in mine:
+        plugin_id = p["id"]
+        if plugin_id.split("@")[-1] in gone_markets:
+            continue  # removed with its marketplace
+        if plugin_id in retired_plugins:
+            plan.append({
+                "what": f"uninstall {plugin_id} (retired)",
+                "args": ["plugin", "uninstall", plugin_id, *scope_args],
+            })
+        elif left_catalog(plugin_id):
+            plan.append({
+                "what": f"uninstall {plugin_id} (no longer in {catalog['name']})",
+                "args": ["plugin", "uninstall", plugin_id, *scope_args],
+            })
+    if SCOPE == "project":
+        # Project settings are not fetched on startup, so add and install explicitly.
+        for name, entry in (fragment.get("extraKnownMarketplaces") or {}).items():
+            src = source_arg(entry.get("source"))
+            if name not in known_names and src:
+                plan.append({
+                    "what": f"add marketplace {name}",
+                    "args": ["plugin", "marketplace", "add", src, *scope_args],
+                })
+        if not MARKETS_ONLY:
+            local_off = read_settings().get("enabledPlugins") or {}
+            for plugin_id, on in (fragment.get("enabledPlugins") or {}).items():
+                if on and local_off.get(plugin_id) is not False and plugin_id not in installed_ids:
+                    plan.append({
+                        "what": f"install {plugin_id}",
+                        "args": ["plugin", "install", plugin_id, *scope_args],
+                    })
+
+for step in plan:
+    diffs.append(step["what"])
+    if DRY:
+        if not CHECK:
+            log(f"would {step['what']}")
+        continue
+    backup_once()
+    ok, out = claude(step["args"])
+    if not ok:
+        failures += 1
+    tail = "" if ok else "\n  " + (out.strip().split("\n")[-1] if out.strip() else "")
+    log(f"{'done' if ok else 'FAILED'}: {step['what']}{tail}")
+
+# ---- 2. merge ------------------------------------------------------------
+current = read_settings()  # re-read: the CLI above edits settings.json
+next_ = copy.deepcopy(current)
+report: list[str] = []
+notes: list[str] = []
+
+next_["extraKnownMarketplaces"] = dict(current.get("extraKnownMarketplaces") or {})
+for name, entry in (fragment.get("extraKnownMarketplaces") or {}).items():
+    if (current.get("extraKnownMarketplaces") or {}).get(name) == entry:
+        continue
+    existed = name in (current.get("extraKnownMarketplaces") or {})
+    next_["extraKnownMarketplaces"][name] = entry
+    report.append(f"marketplace {name}: {'updated' if existed else 'added'}")
+for m in retired.get("marketplaces") or []:
+    if m not in next_["extraKnownMarketplaces"]:
+        continue
+    del next_["extraKnownMarketplaces"][m]
+    report.append(f"marketplace {m}: declaration removed")
+
+next_["enabledPlugins"] = dict(current.get("enabledPlugins") or {})
+stale = list(retired.get("plugins") or []) + [
+    pid for pid in next_["enabledPlugins"] if left_catalog(pid)
+]
+for plugin_id in stale:
+    if plugin_id not in next_["enabledPlugins"]:
+        continue
+    del next_["enabledPlugins"][plugin_id]
+    report.append(f"plugin {plugin_id}: removed from enabledPlugins")
+
+if not MARKETS_ONLY:
+    for plugin_id, on in (fragment.get("enabledPlugins") or {}).items():
+        if (current.get("enabledPlugins") or {}).get(plugin_id) is False:
+            notes.append(f"plugin {plugin_id}: kept disabled on this machine")
+            continue
+        if (current.get("enabledPlugins") or {}).get(plugin_id) == on:
+            continue
+        next_["enabledPlugins"][plugin_id] = on
+        report.append(f"plugin {plugin_id}: enabled")
+
+if not MARKETS_ONLY and fragment.get("outputStyle"):
+    if "outputStyle" not in current:
+        next_["outputStyle"] = fragment["outputStyle"]
+        report.append(f"outputStyle: set to {fragment['outputStyle']}")
+    elif current.get("outputStyle") != fragment["outputStyle"]:
+        notes.append(f"outputStyle: kept {current.get('outputStyle')} chosen on this machine")
+
+diffs.extend(report)
+
+# ---- 3. CLAUDE.md instruction block ---------------------------------------
+# settings/CLAUDE.kibeen.md is kept as a managed block in the user's CLAUDE.md;
+# everything outside the markers is left untouched. No repo file -> block removed.
+memo_src = ROOT / "settings" / "CLAUDE.kibeen.md"
+memo_file = dir_ / "CLAUDE.md"
+BEGIN = (
+    "<!-- BEGIN kibeen-skills: managed by apply_settings.py, "
+    "edit settings/CLAUDE.kibeen.md in the repo -->"
+)
+END = "<!-- END kibeen-skills -->"
+BLOCK_RE = re.compile(
+    r"<!-- BEGIN kibeen-skills[^\n]*-->\n.*?<!-- END kibeen-skills -->\n?", re.DOTALL
+)
+
+memo_now = memo_file.read_text(encoding="utf-8").replace("\r\n", "\n") if memo_file.exists() else ""
+wanted = (
+    f"{BEGIN}\n{memo_src.read_text(encoding='utf-8').replace(chr(13) + chr(10), chr(10)).strip()}\n{END}\n"
+    if memo_src.exists()
+    else ""
+)
+has_block = bool(BLOCK_RE.search(memo_now))
+if has_block:
+    memo_next = BLOCK_RE.sub(lambda _: wanted, memo_now, count=1)
+elif wanted:
+    if not memo_now:
+        sep = ""
+    elif memo_now.endswith("\n\n"):
+        sep = ""
+    elif memo_now.endswith("\n"):
+        sep = "\n"
+    else:
+        sep = "\n\n"
+    memo_next = memo_now + sep + wanted
+else:
+    memo_next = memo_now
+
+if memo_next != memo_now:
+    what = "removed" if not wanted else ("updated" if has_block else "added")
+    diffs.append(f"CLAUDE.md instructions: {what}")
+    if not DRY:
+        if memo_file.exists():
+            shutil.copy2(memo_file, f"{memo_file}.bak-{stamp()}")
+        dir_.mkdir(parents=True, exist_ok=True)
+        memo_file.write_text(memo_next, encoding="utf-8")
+        log(f"CLAUDE.md instructions {what}: {memo_file}")
+    elif not CHECK:
+        verb = {"removed": "remove", "added": "add"}.get(what, "update")
+        log(f"would {verb} the kibeen-skills block in {memo_file}")
+
+if CHECK:
+    if HOOK:
+        if diffs:
+            extra = " --scope project" if SCOPE == "project" else ""
+            hook_message(
+                f"kibeen-skills 설정과 다름 [{SCOPE}] ({summary()}). "
+                f'확인: python "{SELF}"{extra} --dry-run'
+            )
+    else:
+        if diffs:
+            print(f"{len(diffs)} item(s) differ:\n" + "\n".join("  " + d for d in diffs))
+        else:
+            print("In sync.")
+    sys.exit(2 if diffs else 0)
+
+log("\n".join([str(file_), *(report or ["Settings already up to date."]), *notes]))
+if not DRY and report:
+    dir_.mkdir(parents=True, exist_ok=True)
+    backup_once()
+    file_.write_text(json.dumps(next_, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    log("Written. Restart Claude Code; enabled plugins that are not installed yet are fetched on startup.")
+
+if HOOK and not DRY and diffs:
+    hook_message(
+        f"kibeen-skills 설정을 자동 적용했습니다 [{SCOPE}] "
+        f"({summary()}{f', 실패 {failures}건' if failures else ''}). "
+        f"새로 켠 플러그인은 다음 세션부터 쓸 수 있습니다. "
+        f"되돌리기: {backup_path or '백업 없음'}"
+    )

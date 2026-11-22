@@ -22,32 +22,36 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 ```
 - 의존성 목록은 `plugins/kibeen-skills/.claude-plugin/plugin.json`. `settings/claude-settings.json` 의 `enabledPlugins` 와 같게 유지한다.
 - 다른 마켓플레이스 의존성은 `.claude-plugin/marketplace.json` 의 `allowCrossMarketplaceDependenciesOn` 에 그 마켓플레이스가 있어야 한다.
-- 이 방식은 설치만 한다. 다른 플러그인을 지우거나 끄는 것은 아래 `apply-settings.mjs` 로 한다.
+- 이 방식은 설치만 한다. 다른 플러그인을 지우거나 끄는 것은 아래 `apply_settings.py` 로 한다.
 - `kibeen-skills` 플러그인 의 SessionStart 훅이 이 레포에 새 커밋이 있을 때, 아니면 하루 한 번 이 머신을 설정에 맞춘다.
   설치·켜기·제거를 모두 자동 적용하고(설정 백업 생성), 무엇을 했는지 한 줄 알림을 띄운다. 모델 컨텍스트에는 넣지 않는다.
   새로 켠 플러그인은 다음 세션부터 쓸 수 있다.
 - 자동 적용 대신 알림만 받으려면 환경변수 `KIBEEN_AUTO_APPLY=0`. 수동 확인은
-  `node ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply-settings.mjs --dry-run`.
+  `python ~/.claude/plugins/marketplaces/kibeen-skills/scripts/apply_settings.py --dry-run`.
 - 제거 목록(`retired`)에 있는 도구는 그 머신에서 직접 다시 설치해도 다음 동기화 때 다시 제거된다.
 
 ## 지침과 출력 스타일 (모든 머신에 자동 적용)
 답변을 짧게 쓰게 하는 일은 Claude Code 내장 출력 스타일 `Concise` 가 맡는다. `settings/claude-settings.json` 의
-`outputStyle` 을 `apply-settings.mjs` 가 각 머신의 `settings.json` 에 넣는다. 그 머신에서 다른 스타일을 골라 두었으면 바꾸지 않는다.
+`outputStyle` 을 `apply_settings.py` 가 각 머신의 `settings.json` 에 넣는다. 그 머신에서 다른 스타일을 골라 두었으면 바꾸지 않는다.
 `Concise` 는 Claude Code 2.1.237 이상에서 동작하고, 그보다 낮은 버전은 기본 스타일로 돈다.
 
-`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙)을 `apply-settings.mjs` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
 `kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
 
 ## 새 머신 설정 (1회)
+
+요구사항은 **Python 3.9+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다.
+`python` 이 없는 환경에서는 `python3` 로 바꿔 실행한다 (훅은 둘 다 시도한다).
+
 ```bash
 git clone https://github.com/kibeen/kibeen-skills.git ~/kibeen-skills
-node ~/kibeen-skills/scripts/apply-settings.mjs --dry-run   # 바뀔 내용 확인
-node ~/kibeen-skills/scripts/apply-settings.mjs             # 적용 (settings.json 백업 생성)
+python ~/kibeen-skills/scripts/apply_settings.py --dry-run   # 바뀔 내용 확인
+python ~/kibeen-skills/scripts/apply_settings.py             # 적용 (settings.json 백업 생성)
 ```
 Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths true` 를 실행한다(아래 "Windows" 참고).
 
-`apply-settings.mjs` 가 하는 일:
+`apply_settings.py` 가 하는 일:
 
 1. **정리** (`claude` CLI 사용): `settings/claude-settings.json` 의 `retired` 에 적힌 마켓플레이스를 제거(그 플러그인도 함께 제거)하고
    플러그인을 제거한다. 이 마켓플레이스에서 빠진 `@kibeen-skills` 플러그인도 제거한다.
@@ -59,9 +63,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 **프로젝트 범위**: 한 프로젝트에만 적용하려면 그 프로젝트 폴더에서 `claude plugin install kibeen-skills@kibeen-skills --scope project`.
 동기화 훅이 이를 알아보고 `<프로젝트>/.claude/settings.json` 과 `<프로젝트>/.claude/CLAUDE.md` 만 바꾼다(사용자 설정은 그대로).
 프로젝트 설정의 플러그인은 시작할 때 자동으로 받아지지 않으므로, 스크립트가 `--scope project` 로 직접 추가·설치한다.
-수동 실행: `node scripts/apply-settings.mjs --scope project --project-dir <프로젝트>`.
+수동 실행: `python scripts/apply_settings.py --scope project --project-dir <프로젝트>`.
 
-목록을 바꾸려면 `settings/claude-settings.json` 을 고쳐 push 하고, 각 머신에서 `git pull` 후 `apply-settings.mjs` 를 다시 실행한다.
+목록을 바꾸려면 `settings/claude-settings.json` 을 고쳐 push 하고, 각 머신에서 `git pull` 후 `apply_settings.py` 를 다시 실행한다.
 도구를 없앨 때는 목록에서 지우고 `retired` 에 추가해야 이미 설치한 머신에서도 정리된다.
 
 ## 업데이트가 따라가는 방식
@@ -93,7 +97,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 `pr-loop` 은 커밋을 고정하지 않고 레포를 가리킨다. 그 레포에 푸시하면 `claude plugin update pr-loop@kibeen-skills` 로 받는다.
 
-스크립트 테스트: `node --test tests/*.test.mjs` (네트워크와 `gh` 없이 돈다).
+스크립트 테스트: `python -m unittest discover -s tests` (네트워크와 `gh` 없이 돈다).
 
 ### 기술 문서 작성 스킬 (기본 켬)
 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다.
@@ -106,7 +110,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 `.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
-역할이 겹쳐 남기지 않은 도구다. `apply-settings.mjs` 가 각 머신에서 정리한다.
+역할이 겹쳐 남기지 않은 도구다. `apply_settings.py` 가 각 머신에서 정리한다.
 
 | 분야 | 남긴 것 | 제거한 것 |
 |---|---|---|
