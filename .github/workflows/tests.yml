@@ -1,4 +1,7 @@
-# Runs the settings-sync tests on every PR and push to main.
+# Runs the settings-sync tests on every PR, and on pushes to main except the
+# one that matters most: sync-upstream.yml pushes with the token actions/checkout
+# installed, and GitHub starts no run for such a push, so that workflow runs the
+# suite itself before pushing.
 # Both OSes matter: the suite covers defects that surface on only one of them
 # (the Windows console code page, and CRLF translation in the files the hook
 # writes). It does not cover the hook's `python` / `python3` fallback - those

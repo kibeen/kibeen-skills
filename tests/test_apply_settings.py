@@ -359,6 +359,42 @@ class RuntimeFloorTest(unittest.TestCase):
         self.assertFalse((m.dir / "settings.json").exists())
 
 
+class SyncWorkflowGuardTest(unittest.TestCase):
+    """sync-upstream.yml pushes to main with credentials that start no
+    workflow run, so the step it runs itself is the only thing standing
+    between a bumped pin and the default branch. Nothing else in this repo
+    would notice if that step were dropped, reordered after the push, or
+    left collecting zero tests."""
+
+    def setUp(self):
+        path = ROOT / ".github" / "workflows" / "sync-upstream.yml"
+        self.lines = path.read_text(encoding="utf-8").split(chr(10))
+
+    def _first(self, pattern):
+        for i, line in enumerate(self.lines):
+            if re.search(pattern, line):
+                return i
+        return None
+
+    def test_the_suite_runs_before_the_push(self):
+        tested = self._first(r"unittest discover")
+        pushed = self._first(r"^\s*git push")
+        self.assertIsNotNone(tested, "the sync workflow pushes to main untested")
+        self.assertIsNotNone(pushed, "expected a git push in the sync workflow")
+        self.assertLess(
+            tested, pushed,
+            "the test step must come before the push, or the bot commit lands "
+            "on main before anything has checked it",
+        )
+
+    def test_the_push_is_guarded_against_an_empty_suite(self):
+        self.assertIsNotNone(
+            self._first(r"countTestCases"),
+            "discover exits 0 on an empty suite, so the push needs the same "
+            "collection guard tests.yml uses",
+        )
+
+
 class HookVisibilityTest(unittest.TestCase):
     """The hook used to swallow every failure, so a broken sync looked healthy.
     Four defects shipped behind that."""
