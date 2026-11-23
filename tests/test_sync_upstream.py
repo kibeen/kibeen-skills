@@ -8,6 +8,8 @@ Run: python -m unittest discover -s tests
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -77,7 +79,9 @@ class Tree:
 
     def run(self, fetch, *argv, **env):
         env = {"GITHUB_OUTPUT": str(self.output), **env}
-        return sync_upstream.main(list(argv), env, self.root, fetch)
+        # keep the script's report out of the suite's own output
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return sync_upstream.main(list(argv), env, self.root, fetch)
 
     def read(self, rel=".claude-plugin/marketplace.json"):
         return json.loads((self.root / rel).read_text(encoding="utf-8"))
@@ -179,7 +183,7 @@ class SyncUpstreamTest(unittest.TestCase):
 
     def test_a_malformed_min_age_days_stops_before_any_lookup(self):
         """Number("3d") was NaN, which the Node version read as "no delay"."""
-        for bad in ("3d", "-1", "nan", "inf"):
+        for bad in ("3d", "-1", "nan", "inf", "1e9"):
             with self.subTest(value=bad):
                 t = self.tree([subdir_plugin()])
                 up = FakeUpstream({})

@@ -877,6 +877,32 @@ class HookFailurePathTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(r.stderr, "", "no raw traceback may reach the user")
                 self.assertTrue(c.stamp.get("sha"), "the run still completes and stamps")
+
+    def test_a_project_that_enables_the_plugin_is_synced_at_project_scope(self):
+        """The other half of enabled_in_project(): without this, a version that
+        always answered False passed the whole suite."""
+        c = self.checkout(
+            "import json, pathlib, sys\n"
+            "pathlib.Path(__file__).with_name('argv.json').write_text(json.dumps(sys.argv[1:]))\n"
+            "sys.exit(0)\n"
+        )
+        project = c.dir / "project"
+        (project / ".claude").mkdir(parents=True)
+        (project / ".claude" / "settings.json").write_text(
+            json.dumps({"enabledPlugins": {"kibeen-skills@kibeen-skills": True}}), encoding="utf-8")
+        c.env["CLAUDE_PROJECT_DIR"] = str(project)
+        r = c.run()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        data = c.dir / "plugins" / "data" / "kibeen-skills"
+        self.assertFalse((data / "last-sync-user.json").exists(), "the user scope was synced")
+        stamps = list(data.glob("last-sync-*.json"))
+        self.assertEqual(len(stamps), 1, stamps)
+        self.assertEqual(json.loads(stamps[0].read_text(encoding="utf-8"))["scope"], "project")
+        child = c.dir / "plugins" / "marketplaces" / "kibeen-skills" / "scripts" / "argv.json"
+        argv = json.loads(child.read_text(encoding="utf-8"))
+        self.assertEqual(argv[argv.index("--scope") + 1], "project")
+        self.assertEqual(argv[argv.index("--project-dir") + 1], str(project))
+
     def test_a_broken_project_settings_file_cannot_abort_the_session(self):
         """The project's settings are read before the guarded block to pick the
         scope. A file there that is not UTF-8, or whose top level is not an

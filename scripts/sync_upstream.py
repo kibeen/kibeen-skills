@@ -72,7 +72,10 @@ def cutoff_from(raw: str | None, now: datetime | None = None) -> datetime | None
         raise ValueError("MIN_AGE_DAYS must be a non-negative number of days, got %r" % raw)
     if days == 0:
         return None
-    return (now or datetime.now(timezone.utc)) - timedelta(days=days)
+    try:
+        return (now or datetime.now(timezone.utc)) - timedelta(days=days)
+    except OverflowError:
+        raise ValueError("MIN_AGE_DAYS reaches back before year 1, got %r" % raw) from None
 
 
 def iso(when: datetime) -> str:
