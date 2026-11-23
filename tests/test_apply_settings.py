@@ -284,6 +284,15 @@ class RuntimeFloorTest(unittest.TestCase):
         import _runtime
         self.rt = _runtime
 
+    def tracked_python(self):
+        """Every tracked .py file, so a guard cannot miss a file nobody listed."""
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "*.py"], cwd=ROOT, capture_output=True, check=True,
+        ).stdout.decode("utf-8").split(chr(0))
+        files = [r for r in out if r]
+        self.assertGreater(len(files), 2, "git ls-files found almost nothing")
+        return files
+
     def test_the_declared_floor_appears_nowhere_else_hardcoded(self):
         """One source of truth. Any other file naming a lower version can drift
         from it silently, which is exactly what happened with 3.9.
@@ -345,40 +354,50 @@ class RuntimeFloorTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("설치는 직접 하지 않는다", readme)
 
-    def test_every_process_this_starts_is_accounted_for(self):
+    def test_every_process_this_repo_starts_is_accounted_for(self):
         """The guard that keeps the README true, counted rather than intercepted.
 
-        The first version of this patched `subprocess` on the module under test, which
-        only catches the spelling I thought of: a reviewer injected
-        `os.system("winget install ...")` and all 43 tests passed. Reading the call
-        sites instead covers os.system, os.popen, os.exec*, Popen and the rest, in the
-        hook as well as here - and it needs nothing to actually run, so a test cannot
-        install anything while proving that nothing does.
+        The first version patched `subprocess` on the module under test, which only
+        catches the spelling I thought of: a reviewer injected
+        `os.system("winget install ...")` and every test still passed. The second
+        version read the call sites but only in the two files it listed, so a new
+        `scripts/_install.py`, or the same call in `apply_settings.py`, walked past it.
 
-        Any new way of starting a process in these files fails this until someone adds
-        it here on purpose, with a reason.
+        It now reads every tracked .py file - the way the drift guard above finds its
+        files - and compares what they start to this list, each entry with what it is
+        for. That covers os.system, os.popen, os.exec*, Popen and check_call wherever
+        they appear, and it runs nothing, so a test cannot install something while
+        proving that nothing does.
+
+        Known limit: this counts call sites, so it cannot see a changed argv handed to
+        a call already listed here. The import check below is the backstop for a module
+        that offers another way to start a process.
         """
         allowed = {
-            ("scripts/_runtime.py", "subprocess.run"): 1,            # the version probe
-            ("plugins/kibeen-skills/hooks/sync_settings.py",
-             "subprocess.run"): 2,                                   # claude --version, then the sync
+            # the version probe
+            ("scripts/_runtime.py", "subprocess.run"): 1,
+            # `claude plugin marketplace list --json`, then the sync child
+            ("plugins/kibeen-skills/hooks/sync_settings.py", "subprocess.run"): 2,
+            # `claude ...`, and the same through a shell when Windows has only a shim
+            ("scripts/apply_settings.py", "subprocess.run"): 2,
         }
         spawners = {
             "run", "Popen", "call", "check_call", "check_output", "system", "popen",
-            "spawnl", "spawnle", "spawnlp", "spawnv", "spawnve", "spawnvp", "spawnvpe",
-            "execl", "execle", "execlp", "execv", "execve", "execvp", "execvpe",
-            "fork", "forkpty", "posix_spawn", "posix_spawnp", "startfile",
+            "spawn", "spawnl", "spawnle", "spawnlp", "spawnv", "spawnve", "spawnvp",
+            "spawnvpe", "execl", "execle", "execlp", "execv", "execve", "execvp",
+            "execvpe", "fork", "forkpty", "posix_spawn", "posix_spawnp", "startfile",
+            "create_subprocess_exec", "create_subprocess_shell",
         }
         found = {}
-        for rel in sorted({path for path, _ in allowed}):
-            source = (ROOT / rel).read_text(encoding="utf-8")
-            for node in ast.walk(ast.parse(source)):
+        for rel in self.tracked_python():
+            if rel.startswith("tests/"):
+                continue  # the tests drive the scripts on purpose
+            for node in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
                 if not isinstance(node, ast.Call):
                     continue
                 func = node.func
                 if isinstance(func, ast.Attribute):
-                    name = func.attr
-                    owner = getattr(func.value, "id", None) or "?"
+                    name, owner = func.attr, getattr(func.value, "id", None) or "?"
                 elif isinstance(func, ast.Name):
                     name, owner = func.id, "(bare)"
                 else:
@@ -388,10 +407,44 @@ class RuntimeFloorTest(unittest.TestCase):
                     found[key] = found.get(key, 0) + 1
         self.assertEqual(
             found, allowed,
-            "the processes these files start changed. Every one has to be listed here "
+            "the processes this repo starts changed. Every one has to be listed here "
             "with what it is for, because the README promises the install command is "
             "printed and never run."
         )
+
+    def test_no_module_that_offers_another_way_to_spawn_is_imported(self):
+        """The backstop for the name list above.
+
+        `spawners` is a set of attribute names, so a module with its own vocabulary -
+        asyncio.create_subprocess_exec, pty.spawn, multiprocessing - could slip past a
+        name I did not think to add. Nothing can start a process without importing
+        something, so the imports are the narrower thing to pin.
+        """
+        allowed = {
+            "plugins/kibeen-skills/hooks/sync_settings.py": {
+                "__future__", "_runtime", "hashlib", "json", "os", "pathlib",
+                "subprocess", "sys", "time", "traceback",
+            },
+            "scripts/_runtime.py": {"os", "subprocess", "sys"},
+            "scripts/apply_settings.py": {
+                "__future__", "_runtime", "copy", "datetime", "json", "os", "pathlib",
+                "re", "shutil", "subprocess", "sys",
+            },
+        }
+        for rel in self.tracked_python():
+            if rel.startswith("tests/"):
+                continue
+            modules = set()
+            for node in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Import):
+                    modules.update(a.name.split(".")[0] for a in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    modules.add(node.module.split(".")[0])
+            self.assertEqual(
+                modules, allowed.get(rel, set()),
+                "%s imports changed. Add it here with a reason: an import is how any "
+                "other way of starting a process would arrive." % rel,
+            )
 
     def test_the_hint_names_a_real_installer(self):
         """So the promise cannot be kept by printing nothing useful."""
