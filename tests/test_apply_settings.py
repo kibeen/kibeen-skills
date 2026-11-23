@@ -369,9 +369,12 @@ class RuntimeFloorTest(unittest.TestCase):
         they appear, and it runs nothing, so a test cannot install something while
         proving that nothing does.
 
-        Known limit: this counts call sites, so it cannot see a changed argv handed to
-        a call already listed here. The import check below is the backstop for a module
-        that offers another way to start a process.
+        Known limits. It counts call sites, so it cannot see a changed argv handed to
+        a call already listed here. It reads the shape of the call node, so
+        `getattr(os, "system")("...")` goes past it and an unrelated `Thing().run()`
+        would be a false positive that has to be listed or renamed. The import check
+        below is the backstop: a module offering another way to start a process is
+        caught before either of those matters.
         """
         allowed = {
             # the version probe
@@ -389,10 +392,16 @@ class RuntimeFloorTest(unittest.TestCase):
             "create_subprocess_exec", "create_subprocess_shell",
         }
         found = {}
+        unreadable = []
         for rel in self.tracked_python():
             if rel.startswith("tests/"):
                 continue  # the tests drive the scripts on purpose
-            for node in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+            try:
+                tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, SyntaxError) as e:
+                unreadable.append("%s (%s)" % (rel, e))
+                continue
+            for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
                 func = node.func
@@ -405,6 +414,7 @@ class RuntimeFloorTest(unittest.TestCase):
                 if name in spawners:
                     key = (rel, "%s.%s" % (owner, name))
                     found[key] = found.get(key, 0) + 1
+        self.assertEqual(unreadable, [], "could not read a tracked file")
         self.assertEqual(
             found, allowed,
             "the processes this repo starts changed. Every one has to be listed here "
@@ -435,7 +445,11 @@ class RuntimeFloorTest(unittest.TestCase):
             if rel.startswith("tests/"):
                 continue
             modules = set()
-            for node in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+            try:
+                tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, SyntaxError) as e:
+                self.fail("could not read tracked file %s: %s" % (rel, e))
+            for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     modules.update(a.name.split(".")[0] for a in node.names)
                 elif isinstance(node, ast.ImportFrom) and node.module:
