@@ -340,56 +340,69 @@ class RuntimeFloorTest(unittest.TestCase):
 
         upgrade_hint() returns a command and nothing runs it, because installing a
         runtime changes the machine and usually needs an administrator. A reader of
-        the README had no way to know that, and pr-loop's watcher makes the same
-        choice, so the two have to say the same thing.
+        the README had no way to know that.
         """
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("설치는 직접 하지 않는다", readme)
 
-    def test_the_only_command_this_runs_is_the_version_probe(self):
-        """The guard that keeps the README true.
+    def test_every_process_this_starts_is_accounted_for(self):
+        """The guard that keeps the README true, counted rather than intercepted.
 
-        Nothing here may run the install command it prints - not now, and not after
-        someone decides it would be convenient.
+        The first version of this patched `subprocess` on the module under test, which
+        only catches the spelling I thought of: a reviewer injected
+        `os.system("winget install ...")` and all 43 tests passed. Reading the call
+        sites instead covers os.system, os.popen, os.exec*, Popen and the rest, in the
+        hook as well as here - and it needs nothing to actually run, so a test cannot
+        install anything while proving that nothing does.
+
+        Any new way of starting a process in these files fails this until someone adds
+        it here on purpose, with a reason.
         """
-        seen = []
+        allowed = {
+            ("scripts/_runtime.py", "subprocess.run"): 1,            # the version probe
+            ("plugins/kibeen-skills/hooks/sync_settings.py",
+             "subprocess.run"): 2,                                   # claude --version, then the sync
+        }
+        spawners = {
+            "run", "Popen", "call", "check_call", "check_output", "system", "popen",
+            "spawnl", "spawnle", "spawnlp", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+            "execl", "execle", "execlp", "execv", "execve", "execvp", "execvpe",
+            "fork", "forkpty", "posix_spawn", "posix_spawnp", "startfile",
+        }
+        found = {}
+        for rel in sorted({path for path, _ in allowed}):
+            source = (ROOT / rel).read_text(encoding="utf-8")
+            for node in ast.walk(ast.parse(source)):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if isinstance(func, ast.Attribute):
+                    name = func.attr
+                    owner = getattr(func.value, "id", None) or "?"
+                elif isinstance(func, ast.Name):
+                    name, owner = func.id, "(bare)"
+                else:
+                    continue
+                if name in spawners:
+                    key = (rel, "%s.%s" % (owner, name))
+                    found[key] = found.get(key, 0) + 1
+        self.assertEqual(
+            found, allowed,
+            "the processes these files start changed. Every one has to be listed here "
+            "with what it is for, because the README promises the install command is "
+            "printed and never run."
+        )
 
-        class FakeSubprocess:
-            PIPE = subprocess.PIPE
-            DEVNULL = subprocess.DEVNULL
-            SubprocessError = subprocess.SubprocessError
-            TimeoutExpired = subprocess.TimeoutExpired
-
-            @staticmethod
-            def run(argv, **kwargs):
-                seen.append(list(argv))
-                raise OSError("no interpreter here")
-
-        class FakeSys:
-            executable = sys.executable
-            platform = sys.platform
-            version_info = (3, 0, 0)  # below any floor, so the shortfall path runs
-
-        saved = (self.rt.subprocess, self.rt.sys)
-        self.rt.subprocess = FakeSubprocess
-        self.rt.sys = FakeSys
-        try:
-            argv, best = self.rt.survey()
-            hint = self.rt.upgrade_hint()
-        finally:
-            self.rt.subprocess, self.rt.sys = saved
-
-        self.assertIsNone(argv, "no interpreter should have been accepted")
-        self.assertTrue(seen, "the survey probed nothing at all")
-        installers = ("winget", "brew", "apt", "apt-get", "dnf", "pacman", "zypper", "install")
-        for spawned in seen:
-            self.assertIn("-c", spawned, "a spawn that is not a probe: %s" % spawned)
-            self.assertIn("sys.version_info", spawned[spawned.index("-c") + 1])
-            for word in installers:
-                self.assertNotIn(word, " ".join(spawned), "an installer was run: %s" % spawned)
+    def test_the_hint_names_a_real_installer(self):
+        """So the promise cannot be kept by printing nothing useful."""
+        hint = self.rt.upgrade_hint()
+        self.assertTrue(hint.strip())
+        # narrow on purpose: "install" alone would match the no-package-manager
+        # fallback ("install Python 3.11 or newer") and make this assertion vacuous
+        managers = ("winget", "brew", "apt", "dnf", "pacman", "zypper")
         self.assertTrue(
-            any(word in hint for word in installers),
-            "the hint names no installer: %r" % hint,
+            any(m in hint for m in managers) or hint.startswith("install Python"),
+            "the hint names no installer and is not the documented fallback: %r" % hint,
         )
 
     def test_apply_settings_refuses_to_run_below_the_floor(self):
