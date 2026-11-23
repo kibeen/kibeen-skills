@@ -335,6 +335,63 @@ class RuntimeFloorTest(unittest.TestCase):
         self.assertIn(self.rt.floor_str(), self.rt.shortfall_message())
         self.assertIn(hint, self.rt.shortfall_message())
 
+    def test_the_readme_says_the_install_is_not_run_for_the_user(self):
+        """The choice lived only in the code.
+
+        upgrade_hint() returns a command and nothing runs it, because installing a
+        runtime changes the machine and usually needs an administrator. A reader of
+        the README had no way to know that, and pr-loop's watcher makes the same
+        choice, so the two have to say the same thing.
+        """
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("설치는 직접 하지 않는다", readme)
+
+    def test_the_only_command_this_runs_is_the_version_probe(self):
+        """The guard that keeps the README true.
+
+        Nothing here may run the install command it prints - not now, and not after
+        someone decides it would be convenient.
+        """
+        seen = []
+
+        class FakeSubprocess:
+            PIPE = subprocess.PIPE
+            DEVNULL = subprocess.DEVNULL
+            SubprocessError = subprocess.SubprocessError
+            TimeoutExpired = subprocess.TimeoutExpired
+
+            @staticmethod
+            def run(argv, **kwargs):
+                seen.append(list(argv))
+                raise OSError("no interpreter here")
+
+        class FakeSys:
+            executable = sys.executable
+            platform = sys.platform
+            version_info = (3, 0, 0)  # below any floor, so the shortfall path runs
+
+        saved = (self.rt.subprocess, self.rt.sys)
+        self.rt.subprocess = FakeSubprocess
+        self.rt.sys = FakeSys
+        try:
+            argv, best = self.rt.survey()
+            hint = self.rt.upgrade_hint()
+        finally:
+            self.rt.subprocess, self.rt.sys = saved
+
+        self.assertIsNone(argv, "no interpreter should have been accepted")
+        self.assertTrue(seen, "the survey probed nothing at all")
+        installers = ("winget", "brew", "apt", "apt-get", "dnf", "pacman", "zypper", "install")
+        for spawned in seen:
+            self.assertIn("-c", spawned, "a spawn that is not a probe: %s" % spawned)
+            self.assertIn("sys.version_info", spawned[spawned.index("-c") + 1])
+            for word in installers:
+                self.assertNotIn(word, " ".join(spawned), "an installer was run: %s" % spawned)
+        self.assertTrue(
+            any(word in hint for word in installers),
+            "the hint names no installer: %r" % hint,
+        )
+
     def test_apply_settings_refuses_to_run_below_the_floor(self):
         """Raise the floor past the running interpreter and the script must
         stop with the hint, not start writing files."""
