@@ -21,13 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Bump pins
         id: sync
-        run: node scripts/sync-upstream.mjs
+        # The runner's python3, the same one the test step below uses; the
+        # script checks the declared floor itself and stops when it is not met.
+        run: python3 scripts/sync_upstream.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Repository variable; set it to e.g. 3 to adopt only releases at least 3 days old.

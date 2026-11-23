@@ -440,6 +440,11 @@ class RuntimeFloorTest(unittest.TestCase):
                 "__future__", "_runtime", "copy", "datetime", "json", "os", "pathlib",
                 "re", "shutil", "subprocess", "sys",
             },
+            # urllib for the GitHub and npm lookups; it starts no process
+            "scripts/sync_upstream.py": {
+                "__future__", "_runtime", "datetime", "json", "math", "os", "pathlib",
+                "re", "sys", "urllib",
+            },
         }
         for rel in self.tracked_python():
             if rel.startswith("tests/"):
@@ -543,6 +548,41 @@ class SyncWorkflowGuardTest(unittest.TestCase):
             "discover exits 0 on an empty suite, so the push needs the same "
             "collection guard tests.yml uses",
         )
+
+
+class NodeFreeTest(unittest.TestCase):
+    """The repo dropped Node.js. Nothing here may quietly bring the runtime back,
+    and the workflows must not call a script that the port renamed away."""
+
+    def tracked(self):
+        out = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True,
+        ).stdout.decode("utf-8").split(chr(0))
+        return [r for r in out if r]
+
+    def workflow_lines(self):
+        for wf in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+            for lineno, line in enumerate(wf.read_text(encoding="utf-8").split(chr(10)), 1):
+                if not line.lstrip().startswith("#"):
+                    yield "%s:%d" % (wf.name, lineno), line
+
+    def test_no_node_script_or_manifest_is_tracked(self):
+        strays = [r for r in self.tracked()
+                  if r.endswith((".mjs", ".cjs", ".js")) or Path(r).name == "package.json"]
+        self.assertEqual(strays, [], "a Node script came back")
+
+    def test_no_workflow_installs_or_runs_node(self):
+        pattern = re.compile(r"setup-node|(^|[\s;&|])(node|npx|npm)\s")
+        hits = ["%s  %s" % (where, line.strip())
+                for where, line in self.workflow_lines() if pattern.search(line)]
+        self.assertEqual(hits, [], "a workflow needs Node again")
+
+    def test_every_script_a_workflow_runs_exists(self):
+        missing = ["%s  %s" % (where, rel)
+                   for where, line in self.workflow_lines()
+                   for rel in re.findall(r"scripts/[\w.-]+", line)
+                   if not (ROOT / rel).is_file()]
+        self.assertEqual(missing, [], "a workflow runs a script that is not in the repo")
 
 
 class HookVisibilityTest(unittest.TestCase):
@@ -837,6 +877,49 @@ class HookFailurePathTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(r.stderr, "", "no raw traceback may reach the user")
                 self.assertTrue(c.stamp.get("sha"), "the run still completes and stamps")
+
+    def test_a_project_that_enables_the_plugin_is_synced_at_project_scope(self):
+        """The other half of enabled_in_project(): without this, a version that
+        always answered False passed the whole suite."""
+        c = self.checkout(
+            "import json, pathlib, sys\n"
+            "pathlib.Path(__file__).with_name('argv.json').write_text(json.dumps(sys.argv[1:]))\n"
+            "sys.exit(0)\n"
+        )
+        project = c.dir / "project"
+        (project / ".claude").mkdir(parents=True)
+        (project / ".claude" / "settings.json").write_text(
+            json.dumps({"enabledPlugins": {"kibeen-skills@kibeen-skills": True}}), encoding="utf-8")
+        c.env["CLAUDE_PROJECT_DIR"] = str(project)
+        r = c.run()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        data = c.dir / "plugins" / "data" / "kibeen-skills"
+        self.assertFalse((data / "last-sync-user.json").exists(), "the user scope was synced")
+        stamps = list(data.glob("last-sync-*.json"))
+        self.assertEqual(len(stamps), 1, stamps)
+        self.assertEqual(json.loads(stamps[0].read_text(encoding="utf-8"))["scope"], "project")
+        child = c.dir / "plugins" / "marketplaces" / "kibeen-skills" / "scripts" / "argv.json"
+        argv = json.loads(child.read_text(encoding="utf-8"))
+        self.assertEqual(argv[argv.index("--scope") + 1], "project")
+        self.assertEqual(argv[argv.index("--project-dir") + 1], str(project))
+
+    def test_a_broken_project_settings_file_cannot_abort_the_session(self):
+        """The project's settings are read before the guarded block to pick the
+        scope. A file there that is not UTF-8, or whose top level is not an
+        object, used to raise out of the hook - and hooks.json then ran it a
+        second time under python3."""
+        for payload in (b"\xff\xfe not utf-8", b"[1, 2]", b'{"enabledPlugins": ["x"]}'):
+            with self.subTest(payload=payload[:12]):
+                c = self.checkout("import sys; sys.exit(0)\n")
+                project = c.dir / "project"
+                (project / ".claude").mkdir(parents=True)
+                (project / ".claude" / "settings.json").write_bytes(payload)
+                c.env["CLAUDE_PROJECT_DIR"] = str(project)
+                r = c.run()
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stderr, "", "no raw traceback may reach the user")
+                self.assertTrue(c.stamp.get("sha"), "the run goes on at user scope and stamps")
+
     def test_a_slow_failure_is_not_retried_every_session(self):
         """A child that fails slowly would otherwise add its cost to every
         session start, with the notice throttled to once a day - a silent

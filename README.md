@@ -41,7 +41,8 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 
 ## 새 머신 설정 (1회)
 
-요구사항은 **Python 3.11+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. Node.js 는 필요 없다.
+요구사항은 **Python 3.11+ (표준 라이브러리만)** 과 `claude` CLI 뿐이다. 이 레포의 스크립트와 훅은 Node.js 를 쓰지 않는다.
+다만 기본으로 켜는 `playwright` 플러그인은 MCP 서버를 `npx` 로 띄우므로, 브라우저 제어를 쓰려면 그 머신에 Node.js 가 있어야 한다.
 
 하한은 `scripts/_runtime.py` 의 `MIN_PYTHON` 한 곳에만 적혀 있고, 다른 곳에 더 낮은 버전이 적히면 테스트가 실패한다. CI 도 이 값을 읽어서 쓴다 — 하한과 최신 파이썬을 Linux 와 Windows 양쪽에서 돌리므로, 하한을 올리면 워크플로를 고치지 않아도 그 버전이 그대로 검증된다.
 
@@ -75,11 +76,11 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 ## 업데이트가 따라가는 방식
 - **공식·원본 마켓플레이스 플러그인**: 각 마켓플레이스가 갱신되면 자동 업데이트로 따라간다. 버전 규칙은 각 원본의 것을 따른다
   (원본 `plugin.json` 에 `version` 이 있으면 원본이 그 값을 올릴 때 업데이트된다).
-- **이 마켓플레이스의 플러그인**: `.github/workflows/sync-upstream.yml` 이 매일 06:17 KST 에 `scripts/sync-upstream.mjs` 를 실행해
+- **이 마켓플레이스의 플러그인**: `.github/workflows/sync-upstream.yml` 이 매일 06:17 KST 에 `scripts/sync_upstream.py` 를 실행해
   각 `source.sha` 를 업스트림 최신 커밋으로 올리고 커밋한다(`git-subdir` 는 해당 폴더를 바꾼 최신 커밋).
   항목에 `version` 을 적지 않으므로 커밋 SHA 가 곧 버전이 되어, 바뀐 플러그인만 업데이트된다.
-  - 수동 실행: Actions 탭 "Sync upstream pins" → Run workflow, 또는 `GITHUB_TOKEN=$(gh auth token) node scripts/sync-upstream.mjs --dry-run`.
-  - 릴리스 직후 커밋을 바로 받지 않으려면 저장소 변수 `MIN_AGE_DAYS` 를 설정한다(예: 3 → 3일 이상 지난 커밋만 채택).
+  - 수동 실행: Actions 탭 "Sync upstream pins" → Run workflow, 또는 `GITHUB_TOKEN=$(gh auth token) python scripts/sync_upstream.py --dry-run`.
+  - 릴리스 직후 커밋을 바로 받지 않으려면 저장소 변수 `MIN_AGE_DAYS` 를 설정한다(예: 3 → 3일 이상 지난 커밋만 채택). 0 이상의 숫자가 아니면(예: `3d`) 아무것도 조회하지 않고 실패한다.
 
 ## 공식 마켓플레이스 플러그인 (`enabledPlugins` 로 켬)
 `playwright`, `superpowers` (모두 `@claude-plugins-official`)
@@ -97,7 +98,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | 플러그인 | 내용 | 원본 |
 |---|---|---|
 | `kibeen-skills` | 내용 없는 묶음. `dependencies` 로 기본 도구를 함께 설치하고, SessionStart 훅이 이 머신을 `settings/` 에 맞춘다(설치, 제거, 지침, 출력 스타일) | 이 레포 `plugins/kibeen-skills` |
-| `pr-loop` | 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차. 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr-merge-watch.mjs` | [kibeen/pr-loop](https://github.com/kibeen/pr-loop) |
+| `pr-loop` | 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차. 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr_merge_watch.py` | [kibeen/pr-loop](https://github.com/kibeen/pr-loop) |
 
 `pr-loop` 은 커밋을 고정하지 않고 레포를 가리킨다. 그 레포에 푸시하면 `claude plugin update pr-loop@kibeen-skills` 로 받는다.
 
