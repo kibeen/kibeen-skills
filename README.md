@@ -102,9 +102,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `kibeen-skills` | 내용 없는 묶음. `dependencies` 로 기본 도구를 함께 설치하고, SessionStart 훅이 이 머신을 `settings/` 에 맞춘다(설치, 제거, 지침, 출력 스타일) | 이 레포 `plugins/kibeen-skills` |
 | `pr-loop` | 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차. 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr_merge_watch.py` | [kibeen/pr-loop](https://github.com/kibeen/pr-loop) |
 
-`pr-loop` 도 다른 항목처럼 HTTPS `url` 소스와 `sha` 로 고정한다. 그 레포에 푸시한 커밋은 다음 `sync-upstream` 실행(아래 "업데이트가 따라가는 방식")이
+`pr-loop` 도 다른 항목처럼 HTTPS `url` 소스와 `sha` 로 고정한다. 그 레포에 푸시한 커밋은 다음 `sync-upstream` 실행(위 "업데이트가 따라가는 방식")이
 `sha` 를 올린 뒤 자동 업데이트로 각 머신에 들어간다. 바로 받으려면 그 워크플로를 수동으로 돌린다.
-전에는 `sha` 없는 `github` 소스였는데, 자동 업데이트가 몇 주째 옮기지 않은 머신이 있었고, Claude Code 가 `github` 플러그인 소스를
+전에는 `sha` 없는 `github` 소스였는데, upstream 이 커밋 3개를 더 받는 동안 자동 업데이트가 옛 커밋에 머문 머신이 있었고, Claude Code 가 `github` 플러그인 소스를
 SSH 로 받다 실패하면 HTTPS 로 넘어가지 않아 `claude plugin update` 도 GitHub SSH 키가 없는 머신에서 실패했다.
 
 스크립트 테스트: `python -m unittest discover -s tests` (네트워크와 `gh` 없이 돈다. CI 가 PR 마다 Linux/Windows × 하한/최신 네 조합으로 돌리고, 핀을 올리는 `sync-upstream` 은 main 에 푸시하기 전에 스스로 돌린다). 설정 병합과 CLAUDE.md 블록 외에 훅 경로도 덮는다 — 훅 JSON 이 레거시 코드페이지에서도 UTF-8 로 읽히는지, 깨진 `settings.json` 을 덮어쓰지 않는지, `hooks/sync_settings.py` end-to-end, 그리고 `hooks.json` 명령을 Claude Code 가 쓰는 셸(macOS·Linux `sh`, Windows Git Bash)에서 그대로 돌려 Store 스텁을 건너 `py -3` 까지 가는지. 카탈로그의 git 소스가 모두 HTTPS URL 과 `sha` 를 갖는지도 검사한다.

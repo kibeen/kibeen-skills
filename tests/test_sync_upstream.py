@@ -212,7 +212,7 @@ class SyncUpstreamTest(unittest.TestCase):
 
     def test_every_git_plugin_in_the_catalog_is_pinned_and_fetched_over_https(self):
         """pr-loop was a bare `github` entry with no sha. Nothing here moved it,
-        and on a Windows PC with no SSH key it stayed weeks behind: Claude Code
+        and on a Windows PC with no SSH key it stayed three commits behind: Claude Code
         clones `github` sources over SSH when its SSH probe passes and does not
         fall back to HTTPS on a plugin update, so `claude plugin update` failed
         too. A `url` or `git-subdir` source with an https URL is cloned as

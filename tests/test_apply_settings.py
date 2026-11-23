@@ -322,7 +322,10 @@ class HookCommandTest(unittest.TestCase):
     def run_chain(self, working: str):
         shell = hook_shell()
         if shell is None:
-            self.skipTest("no sh (or Git Bash on Windows) to run the hook command in")
+            why = "no sh (or Git Bash on Windows) to run the hook command in"
+            if os.environ.get("CI"):
+                self.fail(why + "; CI must run this, not skip it")  # a silent skip is a green gap
+            self.skipTest(why)
         m = Machine()
         self.addCleanup(m.cleanup)
         install_checkout(m.dir)
