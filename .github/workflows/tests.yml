@@ -4,9 +4,9 @@
 # suite itself before pushing.
 # Both OSes matter: the suite covers defects that surface on only one of them
 # (the Windows console code page, and CRLF translation in the files the hook
-# writes). It does not cover the hook's `python` / `python3` fallback - those
-# tests drive sys.executable and stub the interpreter probe - so that gap is
-# in the suite, not something this workflow can close.
+# writes). The hooks.json command is run in the shell Claude Code uses on each
+# (sh, and Git Bash on Windows), with the interpreter names it tries stubbed, so
+# the `python` / `python3` / `py -3` fallback is covered on both.
 name: tests
 
 on:

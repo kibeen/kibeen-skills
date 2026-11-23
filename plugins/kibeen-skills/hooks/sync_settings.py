@@ -41,8 +41,9 @@ def enabled_in_project(d: str) -> bool:
     This runs before the guarded block, on a file this repo does not own, so
     nothing in it may raise: a non-UTF-8 file (UnicodeDecodeError is a
     ValueError, not a JSONDecodeError) or a top level that is not an object
-    used to abort the hook with a raw traceback - twice, since hooks.json then
-    retries under python3 - and left nothing in last-error.log.
+    used to abort the hook with a raw traceback - once per interpreter, since
+    hooks.json then retries under python3 and py -3 - and left nothing in
+    last-error.log.
     """
     for name in ("settings.json", "settings.local.json"):
         try:

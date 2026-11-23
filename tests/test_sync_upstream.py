@@ -127,7 +127,7 @@ class SyncUpstreamTest(unittest.TestCase):
         self.assertEqual(t.read()["plugins"][0]["source"]["sha"], NEW)
 
     def test_a_source_without_a_pin_is_not_looked_up(self):
-        """pr-loop points at a repo with no sha; it must stay unpinned."""
+        """The script moves pins; it does not add one to an entry that has none."""
         t = self.tree([{"name": "loop", "source": {"source": "github", "repo": "up/loop"}},
                        {"name": "local", "source": "./plugins/local"}])
         up = FakeUpstream({})
@@ -209,6 +209,39 @@ class SyncUpstreamTest(unittest.TestCase):
         t = self.tree([subdir_plugin("a"), subdir_plugin("b")])
         up = FakeUpstream({"api.github.com/repos/up/skills/commits": OSError("network down")})
         self.assertEqual(t.run(up), 1)
+
+    def test_every_git_plugin_in_the_catalog_is_pinned_and_fetched_over_https(self):
+        """pr-loop was a bare `github` entry with no sha. Nothing here moved it,
+        and on a Windows PC with no SSH key it stayed three commits behind: Claude Code
+        clones `github` sources over SSH when its SSH probe passes and does not
+        fall back to HTTPS on a plugin update, so `claude plugin update` failed
+        too. A `url` or `git-subdir` source with an https URL is cloned as
+        written, and its sha is what this script bumps every day."""
+        real = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        checked = 0
+        for p in real["plugins"]:
+            src = p.get("source")
+            if not isinstance(src, dict):
+                continue  # a folder inside this repo
+            checked += 1
+            with self.subTest(p["name"]):
+                self.assertIn(src.get("source"), ("url", "git-subdir"))
+                self.assertTrue(str(src.get("url")).startswith("https://"), src)
+                self.assertRegex(str(src.get("sha")), r"\A[0-9a-f]{40}\Z")
+                self.assertIsNotNone(sync_upstream.repo_of(src), "the daily bump cannot look it up")
+        self.assertGreater(checked, 0, "the catalog has no git source to check")
+
+    def test_the_daily_run_moves_every_git_plugin_of_the_real_catalog(self):
+        real = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        pinned = {p["name"]: p["source"] for p in real["plugins"] if isinstance(p.get("source"), dict)}
+        t = self.tree(real["plugins"])
+        routes = {}
+        for src in pinned.values():
+            repo = sync_upstream.repo_of(src)
+            routes.update({**commits(repo, NEW), **compare(repo, NEW, src["sha"], "behind")})
+        self.assertEqual(t.run(FakeUpstream(routes)), 0)
+        after = {p["name"]: p["source"]["sha"] for p in t.read()["plugins"] if p["name"] in pinned}
+        self.assertEqual(after, {name: NEW for name in pinned})
 
     def test_a_bump_changes_only_the_pinned_line_of_the_real_catalog(self):
         """The written format has to match the committed file, or every bump

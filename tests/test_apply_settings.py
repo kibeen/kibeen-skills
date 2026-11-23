@@ -9,6 +9,8 @@ import ast
 import json
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +21,45 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "apply_settings.py"
 fragment = json.loads((ROOT / "settings" / "claude-settings.json").read_text(encoding="utf-8"))
 catalog = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+PLUGIN_ROOT = ROOT / "plugins" / "kibeen-skills"
+
+
+def hook_commands() -> list:
+    hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    return [h["command"] for e in hooks["hooks"]["SessionStart"] for h in e["hooks"]]
+
+
+def hook_shell() -> str | None:
+    """The shell Claude Code hands a hook `command` to: `sh -c` on macOS and
+    Linux, Git Bash on Windows. Git Bash is found through git, not PATH, which
+    on Windows can hold WSL's bash.exe first."""
+    if sys.platform != "win32":
+        return shutil.which("sh")
+    override = os.environ.get("CLAUDE_CODE_GIT_BASH_PATH")
+    if override and Path(override).is_file():
+        return override
+    git = shutil.which("git")
+    if not git:
+        return None
+    for parent in Path(git).resolve().parents[:3]:
+        bash = parent / "bin" / "bash.exe"
+        if bash.is_file():
+            return str(bash)
+    return None
+
+
+def install_checkout(config_dir: Path) -> None:
+    """The marketplace checkout the hook looks for under `config_dir`."""
+    root = config_dir / "plugins" / "marketplaces" / "kibeen-skills"
+    for rel in (
+        Path("scripts") / "apply_settings.py",
+        Path("scripts") / "_runtime.py",
+        Path("settings") / "claude-settings.json",
+        Path("settings") / "CLAUDE.kibeen.md",
+        Path(".claude-plugin") / "marketplace.json",
+    ):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes((ROOT / rel).read_bytes())
 
 
 def below_floor_versions(line, floor):
@@ -156,22 +197,24 @@ class ApplySettingsTest(unittest.TestCase):
     def test_the_hooks_json_parses_and_runs_the_hook_script(self):
         """CI parsed this file in a job of its own, with the locale's default
         encoding. Reading it here gets both OSes and explicit utf-8, and lets
-        the command be checked rather than only the syntax."""
-        path = ROOT / "plugins" / "kibeen-skills" / "hooks" / "hooks.json"
-        hooks = json.loads(path.read_text(encoding="utf-8"))
-        entries = hooks["hooks"]["SessionStart"]
-        commands = [h["command"] for e in entries for h in e["hooks"]]
+        the command be checked rather than only the syntax.
+
+        `python3` is for machines with no `python`. `py -3` is for Windows,
+        where both names often resolve to the Microsoft Store stub in
+        %LOCALAPPDATA%\\Microsoft\\WindowsApps: it exits 49 and does nothing,
+        so a chain that stops at python3 never syncs while the real Python sits
+        behind the launcher."""
+        commands = hook_commands()
         self.assertTrue(commands, "SessionStart runs nothing")
         for command in commands:
-            self.assertIn("hooks/sync_settings.py", command)
-            self.assertIn(
-                "python3", command,
-                "a machine with no `python` on PATH needs the python3 fallback",
+            branches = [shlex.split(b) for b in command.split(" || ")]
+            self.assertEqual(
+                [b[:-1] for b in branches], [["python"], ["python3"], ["py", "-3"]],
+                "the interpreters the hook tries, in order",
             )
             self.assertEqual(
-                command.count("hooks/sync_settings.py"), 2,
-                "both branches of the python / python3 fallback must run the "
-                "hook, not just the first",
+                {b[-1] for b in branches}, {"${CLAUDE_PLUGIN_ROOT}/hooks/sync_settings.py"},
+                "every branch of the fallback must run the hook, not just the first",
             )
 
 
@@ -244,17 +287,8 @@ class HookPathTest(unittest.TestCase):
         """End-to-end through hooks/sync_settings.py, which locates the
         marketplace checkout and relays the child's stdout."""
         m = self.machine()
-        root = m.dir / "plugins" / "marketplaces" / "kibeen-skills"
-        for rel in (
-            Path("scripts") / "apply_settings.py",
-            Path("scripts") / "_runtime.py",
-            Path("settings") / "claude-settings.json",
-            Path("settings") / "CLAUDE.kibeen.md",
-            Path(".claude-plugin") / "marketplace.json",
-        ):
-            (root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (root / rel).write_bytes((ROOT / rel).read_bytes())
-        hook = ROOT / "plugins" / "kibeen-skills" / "hooks" / "sync_settings.py"
+        install_checkout(m.dir)
+        hook = PLUGIN_ROOT / "hooks" / "sync_settings.py"
         r = subprocess.run(
             [sys.executable, str(hook)],
             capture_output=True, text=True, encoding="utf-8", env=m.env,
@@ -272,6 +306,61 @@ class HookPathTest(unittest.TestCase):
         m = self.machine()
         m.run()
         self.assertNotIn(bytes([13, 10]), (m.dir / "settings.json").read_bytes())
+
+
+class HookCommandTest(unittest.TestCase):
+    """The hooks.json command itself, run in the shell Claude Code uses.
+
+    The tests above start sync_settings.py with sys.executable, so they say
+    nothing about which interpreter the command reaches. Here the real command
+    string runs with `python`, `python3` and `py` shadowed by shell functions:
+    each records that it was tried, then either exits 49 and writes nothing to
+    stdout, as the Microsoft Store stub does, or hands its arguments to this
+    interpreter.
+    """
+
+    def run_chain(self, working: str):
+        shell = hook_shell()
+        if shell is None:
+            why = "no sh (or Git Bash on Windows) to run the hook command in"
+            if os.environ.get("CI"):
+                self.fail(why + "; CI must run this, not skip it")  # a silent skip is a green gap
+            self.skipTest(why)
+        m = Machine()
+        self.addCleanup(m.cleanup)
+        install_checkout(m.dir)
+        tried = m.dir / "tried.log"
+        defs = []
+        for name, logged, drop in (
+            ("python", "python", ""),
+            ("python3", "python3", ""),
+            ("py", 'py $1', "shift; "),  # the launcher's -3 is not Python's
+        ):
+            then = drop + '"$HOOK_TEST_PYTHON" "$@"' if name == working else "return 49"
+            defs.append('%s() { echo "%s" >> "$HOOK_TEST_LOG"; %s; }' % (name, logged, then))
+        (command,) = hook_commands()
+        env = dict(
+            m.env,
+            CLAUDE_PLUGIN_ROOT=str(PLUGIN_ROOT),
+            HOOK_TEST_LOG=tried.as_posix(),
+            HOOK_TEST_PYTHON=Path(sys.executable).as_posix(),
+        )
+        r = subprocess.run(
+            [shell, "-c", chr(10).join(defs + [command])],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=env, timeout=120,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout)  # nothing but the hook's JSON on stdout
+        self.assertIn("kibeen-skills", payload["systemMessage"])
+        self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
+        return tried.read_text(encoding="utf-8").split()
+
+    def test_store_stubs_for_python_and_python3_fall_through_to_py_3(self):
+        self.assertEqual(self.run_chain("py"), ["python", "python3", "py", "-3"])
+
+    def test_a_working_python_runs_the_hook_once(self):
+        self.assertEqual(self.run_chain("python"), ["python"])
 
 
 class RuntimeFloorTest(unittest.TestCase):
@@ -906,8 +995,8 @@ class HookFailurePathTest(unittest.TestCase):
     def test_a_broken_project_settings_file_cannot_abort_the_session(self):
         """The project's settings are read before the guarded block to pick the
         scope. A file there that is not UTF-8, or whose top level is not an
-        object, used to raise out of the hook - and hooks.json then ran it a
-        second time under python3."""
+        object, used to raise out of the hook - and hooks.json then ran it
+        again under python3 and py -3."""
         for payload in (b"\xff\xfe not utf-8", b"[1, 2]", b'{"enabledPlugins": ["x"]}'):
             with self.subTest(payload=payload[:12]):
                 c = self.checkout("import sys; sys.exit(0)\n")

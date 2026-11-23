@@ -47,7 +47,9 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 하한은 `scripts/_runtime.py` 의 `MIN_PYTHON` 한 곳에만 적혀 있고, 다른 곳에 더 낮은 버전이 적히면 테스트가 실패한다. CI 도 이 값을 읽어서 쓴다 — 하한과 최신 파이썬을 Linux 와 Windows 양쪽에서 돌리므로, 하한을 올리면 워크플로를 고치지 않아도 그 버전이 그대로 검증된다.
 
 훅은 하한을 만족하는 인터프리터를 스스로 찾는다 — 지금 돌고 있는 것이 낮으면 `python3.13`, `py -3` 등을 차례로 시도한다. 머신에 만족하는 것이 하나도 없으면 동기화를 건너뛰고 설치 명령을 한 줄로 알려 준다(Windows `winget`, macOS `brew`, Linux 는 패키지 관리자 감지). **설치는 직접 하지 않는다** — 런타임 설치는 시스템 변경이고 대개 관리자 권한이 필요해 사용자의 결정으로 남긴다. 조용히 실패하지 않는다. 동기화가 예외로 죽은 경우에도 traceback 을 `~/.claude/plugins/data/kibeen-skills/last-error.log` 에 남기고 사용자에게 알린다 — 세션은 그대로 진행된다.
-`python` 이 없는 환경에서는 `python3` 로 바꿔 실행한다 (훅은 둘 다 시도한다).
+그 전에 훅 스크립트를 띄울 파이썬은 `hooks.json` 이 `python`, `python3`, `py -3` 순서로 시도한다. `python` 이 없는 환경은 `python3` 가,
+Windows 에서 두 이름이 모두 Microsoft Store 스텁(`%LOCALAPPDATA%\Microsoft\WindowsApps`, 종료 코드 49 로 아무것도 하지 않음)으로 잡히는 환경은 Python 런처 `py -3` 가 받는다.
+아래 명령을 직접 실행할 때도 같은 순서로 바꿔 쓴다(Windows 에서는 대개 `py -3`).
 
 ```bash
 git clone https://github.com/kibeen/kibeen-skills.git ~/kibeen-skills
@@ -100,9 +102,12 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | `kibeen-skills` | 내용 없는 묶음. `dependencies` 로 기본 도구를 함께 설치하고, SessionStart 훅이 이 머신을 `settings/` 에 맞춘다(설치, 제거, 지침, 출력 스타일) | 이 레포 `plugins/kibeen-skills` |
 | `pr-loop` | 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차. 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr_merge_watch.py` | [kibeen/pr-loop](https://github.com/kibeen/pr-loop) |
 
-`pr-loop` 은 커밋을 고정하지 않고 레포를 가리킨다. 그 레포에 푸시하면 `claude plugin update pr-loop@kibeen-skills` 로 받는다.
+`pr-loop` 도 다른 항목처럼 HTTPS `url` 소스와 `sha` 로 고정한다. 그 레포에 푸시한 커밋은 다음 `sync-upstream` 실행(위 "업데이트가 따라가는 방식")이
+`sha` 를 올린 뒤 자동 업데이트로 각 머신에 들어간다. 바로 받으려면 그 워크플로를 수동으로 돌린다.
+전에는 `sha` 없는 `github` 소스였는데, upstream 이 커밋 3개를 더 받는 동안 자동 업데이트가 옛 커밋에 머문 머신이 있었고, Claude Code 가 `github` 플러그인 소스를
+SSH 로 받다 실패하면 HTTPS 로 넘어가지 않아 `claude plugin update` 도 GitHub SSH 키가 없는 머신에서 실패했다.
 
-스크립트 테스트: `python -m unittest discover -s tests` (네트워크와 `gh` 없이 돈다. CI 가 PR 마다 Linux/Windows × 하한/최신 네 조합으로 돌리고, 핀을 올리는 `sync-upstream` 은 main 에 푸시하기 전에 스스로 돌린다). 설정 병합과 CLAUDE.md 블록 외에 훅 경로도 덮는다 — 훅 JSON 이 레거시 코드페이지에서도 UTF-8 로 읽히는지, 깨진 `settings.json` 을 덮어쓰지 않는지, `hooks/sync_settings.py` end-to-end.
+스크립트 테스트: `python -m unittest discover -s tests` (네트워크와 `gh` 없이 돈다. CI 가 PR 마다 Linux/Windows × 하한/최신 네 조합으로 돌리고, 핀을 올리는 `sync-upstream` 은 main 에 푸시하기 전에 스스로 돌린다). 설정 병합과 CLAUDE.md 블록 외에 훅 경로도 덮는다 — 훅 JSON 이 레거시 코드페이지에서도 UTF-8 로 읽히는지, 깨진 `settings.json` 을 덮어쓰지 않는지, `hooks/sync_settings.py` end-to-end, 그리고 `hooks.json` 명령을 Claude Code 가 쓰는 셸(macOS·Linux `sh`, Windows Git Bash)에서 그대로 돌려 Store 스텁을 건너 `py -3` 까지 가는지. 카탈로그의 git 소스가 모두 HTTPS URL 과 `sha` 를 갖는지도 검사한다.
 
 ### 기술 문서 작성 스킬 (기본 켬)
 원본의 스킬 폴더 하나만 `git-subdir` 로 가리킨다.
@@ -111,7 +116,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 |---|---|---|
 | `doc-coauthoring` | 기술 문서, 제안서, 설계 문서 공동 작성 절차 | [anthropics/skills](https://github.com/anthropics/skills) (Anthropic 공식) |
 
-원본에 없는 묶음이 필요해지면 여기에 업스트림 소스와 `sha` 로 추가한다.
+원본에 없는 묶음이 필요해지면 여기에 업스트림 소스(HTTPS URL 의 `url` 또는 `git-subdir`)와 `sha` 로 추가한다.
 `.github/workflows/sync-upstream.yml` 이 그런 항목의 `sha` 를 매일 업스트림 최신으로 올린다.
 
 ## 제거한 도구 (`retired`)
@@ -134,6 +139,15 @@ k-skill(NomaDamas/k-skill) 에서 가져왔던 55개 스킬도 제거했다.
 git config --global core.longpaths true
 ```
 
+`python`, `python3` 가 Microsoft Store 스텁으로 잡히는 머신이 흔하다(`where python` 의 첫 줄이 `...\WindowsApps\python.exe`).
+훅은 `py -3` 까지 시도하므로 따로 할 일은 없고, 이 레포의 스크립트를 직접 돌릴 때는 `python` 대신 `py -3` 을 쓴다.
+스텁을 없애려면 설정 → 앱 → 고급 앱 설정 → 앱 실행 별칭에서 `python.exe`, `python3.exe` 를 끈다.
+
+훅 명령은 Claude Code 가 Git Bash 로 실행한다. Git Bash 가 없으면 PowerShell 로 실행하는데, Windows PowerShell 5.1 은 `||` 를 모르므로
+Git for Windows 를 설치해 둔다.
+
+이 마켓플레이스의 플러그인은 모두 HTTPS URL 로 받으므로 GitHub SSH 키가 없어도 된다.
+
 ## 마켓플레이스 밖의 도구
 | 도구 | 설치 | 업데이트 |
 |---|---|---|
@@ -146,4 +160,5 @@ graphify 는 스킬 파일이 플러그인 구조가 아니고, 설치 프로그
 1. 공식 마켓플레이스에 있으면 → `settings/claude-settings.json` 의 `enabledPlugins` 에 `<이름>@claude-plugins-official`.
 2. 원본이 자체 마켓플레이스를 제공하면 → `extraKnownMarketplaces` 에 그 레포를 `autoUpdate: true` 로 추가하고, README 표에 플러그인 ID 를 적는다.
 3. 둘 다 아니거나 일부만 골라야 하면 → `.claude-plugin/marketplace.json` 에 업스트림 소스와 `sha` 로 추가한다(`version` 은 적지 않는다).
+   소스는 HTTPS URL 의 `url`(레포 전체) 또는 `git-subdir`(폴더 하나)로 적는다. `github` 단축형은 SSH 로 받을 수 있어 쓰지 않는다.
    추가 후 `claude plugin validate .` 로 검사한다.
