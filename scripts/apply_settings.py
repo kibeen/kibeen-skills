@@ -11,7 +11,7 @@
    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
      Entries for kibeen-skills plugins that left the catalog are dropped.
    - outputStyle: set to the repo's style, also replacing a style chosen on this machine;
-     KIBEEN_KEEP_OUTPUT_STYLE=1 keeps that choice.
+     KIBEEN_KEEP_OUTPUT_STYLE=1 keeps that choice. Project scope only fills a missing style.
    - Every other key in settings.json is left as is. A timestamped backup is written first.
 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
    (other content untouched, backup first).
@@ -393,9 +393,10 @@ if not MARKETS_ONLY and fragment.get("outputStyle"):
     had = "outputStyle" in current
     if have == want:
         pass
-    elif had and (KEEP_STYLE or SCOPE == "project"):
-        why = "KIBEEN_KEEP_OUTPUT_STYLE=1" if KEEP_STYLE else "project settings keep their own"
-        notes.append(f"outputStyle: kept {have} chosen on this machine ({why})")
+    elif had and KEEP_STYLE:
+        notes.append(f"outputStyle: kept {have} chosen on this machine (KIBEEN_KEEP_OUTPUT_STYLE=1)")
+    elif had and SCOPE == "project":
+        notes.append(f"outputStyle: kept {have} set in the project settings")
     else:
         next_["outputStyle"] = want
         if had:
