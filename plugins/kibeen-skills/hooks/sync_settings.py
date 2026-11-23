@@ -36,12 +36,21 @@ project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
 
 
 def enabled_in_project(d: str) -> bool:
+    """Whether the project at `d` enables this plugin.
+
+    This runs before the guarded block, on a file this repo does not own, so
+    nothing in it may raise: a non-UTF-8 file (UnicodeDecodeError is a
+    ValueError, not a JSONDecodeError) or a top level that is not an object
+    used to abort the hook with a raw traceback - twice, since hooks.json then
+    retries under python3 - and left nothing in last-error.log.
+    """
     for name in ("settings.json", "settings.local.json"):
         try:
             s = json.loads((Path(d) / ".claude" / name).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue  # missing or unreadable settings file
-        if (s.get("enabledPlugins") or {}).get("kibeen-skills@kibeen-skills"):
+        except (OSError, ValueError):
+            continue  # missing, unreadable, not UTF-8, or not JSON
+        enabled = s.get("enabledPlugins") if isinstance(s, dict) else None
+        if isinstance(enabled, dict) and enabled.get("kibeen-skills@kibeen-skills"):
             return True
     return False
 
