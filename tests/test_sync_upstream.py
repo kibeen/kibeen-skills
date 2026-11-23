@@ -79,9 +79,12 @@ class Tree:
 
     def run(self, fetch, *argv, **env):
         env = {"GITHUB_OUTPUT": str(self.output), **env}
-        # keep the script's report out of the suite's own output
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return sync_upstream.main(list(argv), env, self.root, fetch)
+        # keep the script's report out of the suite's own output, but hold on to stderr
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = sync_upstream.main(list(argv), env, self.root, fetch)
+        self.stderr = err.getvalue()
+        return code
 
     def read(self, rel=".claude-plugin/marketplace.json"):
         return json.loads((self.root / rel).read_text(encoding="utf-8"))
@@ -224,6 +227,7 @@ class SyncUpstreamTest(unittest.TestCase):
         up = FakeUpstream({})
         self.assertEqual(t.run(up), 1)
         self.assertEqual(len(up.calls), 3, "the commit lookup and both npm lookups")
+        self.assertIn("Could not check 3 of 3 pins:", t.stderr)
 
     def test_an_npm_lookup_that_worked_keeps_the_run_passing(self):
         """npm pins count as lookups too, so one that worked is a partial failure."""
@@ -231,6 +235,7 @@ class SyncUpstreamTest(unittest.TestCase):
         up = FakeUpstream({"registry.npmjs.org/pkg-a": {"dist-tags": {"latest": "1.1.0"}}})
         self.assertEqual(t.run(up), 0)
         self.assertEqual(t.read("plugins/one/.mcp.json")["mcpServers"]["a"]["args"], ["pkg-a@1.1.0"])
+        self.assertIn("Could not check 1 of 2 pins:", t.stderr)
 
     def test_a_failed_commit_lookup_still_lets_the_same_plugin_bump_its_npm_pin(self):
         """Each pin is its own lookup: one failing does not skip the next one."""
