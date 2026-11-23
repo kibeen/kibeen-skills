@@ -11,6 +11,9 @@ Env: GITHUB_TOKEN or GH_TOKEN (recommended, raises the API rate limit),
      MIN_AGE_DAYS (default 0; only adopt commits/versions at least this many days old),
      GITHUB_OUTPUT (set by Actions; receives changed=true|false).
 Usage: python scripts/sync_upstream.py [--dry-run]
+Exit:  1 when MIN_AGE_DAYS is malformed or every lookup failed. A pin whose lookup
+       failed is left as it is and reported; with any other lookup working the run
+       still exits 0.
 
 Standard library only. It runs in .github/workflows/sync-upstream.yml, not on user
 machines; it is Python so the repo has one runtime and one test suite. The minimum
@@ -18,6 +21,7 @@ Python version is declared once in scripts/_runtime.py and checked at startup.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -97,7 +101,8 @@ def parse_time(text: object) -> datetime | None:
 def repo_of(src: dict) -> str | None:
     if src.get("source") == "github":
         return src.get("repo")
-    m = GITHUB_REPO.search(src.get("url") or "")
+    url = src.get("url")
+    m = GITHUB_REPO.search(url) if isinstance(url, str) else None
     return m.group(1) if m else None
 
 
@@ -110,6 +115,7 @@ class Sync:
         self.cutoff = cutoff
         self.changes: list[str] = []
         self.failures: list[str] = []
+        self.lookups = 0  # pins looked up; a local folder or an unpinned source is not one
         self._commits: dict = {}
         self._npm: dict = {}
 
@@ -139,23 +145,34 @@ class Sync:
         c = self.gh("/repos/%s/compare/%s...%s" % (repo, base, head))
         return isinstance(c, dict) and c.get("status") in ("identical", "ahead")
 
+    @contextlib.contextmanager
+    def lookup(self, label: str):
+        """One pin's lookup. A failed one leaves that pin unchanged and is reported,
+        not fatal, and the pins after it are still looked up."""
+        self.lookups += 1
+        try:
+            yield
+        except Exception as e:  # noqa: BLE001 - network, HTTP and payload errors alike
+            self.failures.append("%s: %s" % (label, e))
+
     def sync_source(self, name: str, src: object) -> None:
         if not isinstance(src, dict) or not src.get("sha"):
             return
         repo = repo_of(src)
         if not repo:
             return
-        subpath = src.get("path") if src.get("source") == "git-subdir" else None
-        nxt = self.latest_commit(repo, src.get("ref"), subpath)
-        if not nxt or nxt == src["sha"]:
-            return
-        # The pin may already be newer than the latest commit touching `path`
-        # (or newer than the MIN_AGE_DAYS cutoff); keep it in that case.
-        if self.contains(repo, nxt, src["sha"]):
-            return
-        where = repo + ("/" + subpath if subpath else "")
-        self.changes.append("%s: %s %s -> %s" % (name, where, src["sha"][:7], nxt[:7]))
-        src["sha"] = nxt
+        with self.lookup(name):
+            subpath = src.get("path") if src.get("source") == "git-subdir" else None
+            nxt = self.latest_commit(repo, src.get("ref"), subpath)
+            if not nxt or nxt == src["sha"]:
+                return
+            # The pin may already be newer than the latest commit touching `path`
+            # (or newer than the MIN_AGE_DAYS cutoff); keep it in that case.
+            if self.contains(repo, nxt, src["sha"]):
+                return
+            where = repo + ("/" + subpath if subpath else "")
+            self.changes.append("%s: %s %s -> %s" % (name, where, src["sha"][:7], nxt[:7]))
+            src["sha"] = nxt
 
     def latest_npm(self, pkg: str) -> str | None:
         if pkg not in self._npm:
@@ -188,18 +205,12 @@ class Sync:
                 if not m:
                     continue
                 pkg, cur = m.group(1), m.group(2)
-                nxt = self.latest_npm(pkg)
-                if not nxt or nxt == cur:
-                    continue
-                self.changes.append("%s (%s): %s %s -> %s" % (label, srv, pkg, cur, nxt))
-                args[i] = "%s@%s" % (pkg, nxt)
-
-    def guarded(self, label: str, step) -> None:
-        """A failed lookup leaves that pin unchanged and is reported, not fatal."""
-        try:
-            step()
-        except Exception as e:  # noqa: BLE001 - network, HTTP and payload errors alike
-            self.failures.append("%s: %s" % (label, e))
+                with self.lookup("%s (%s)" % (label, srv)):
+                    nxt = self.latest_npm(pkg)
+                    if not nxt or nxt == cur:
+                        continue
+                    self.changes.append("%s (%s): %s %s -> %s" % (label, srv, pkg, cur, nxt))
+                    args[i] = "%s@%s" % (pkg, nxt)
 
 
 def read_json(path: Path) -> object:
@@ -228,10 +239,8 @@ def main(argv=None, env=None, root: Path = ROOT, fetch=http_get_json) -> int:
     market = read_json(market_file)
     plugins = market.get("plugins") or []
     for p in plugins:
-        def step(p=p):
-            sync.sync_source(p.get("name"), p.get("source"))
-            sync.sync_mcp_servers(p.get("name"), p.get("mcpServers"))
-        sync.guarded(p.get("name"), step)
+        sync.sync_source(p.get("name"), p.get("source"))
+        sync.sync_mcp_servers(p.get("name"), p.get("mcpServers"))
 
     local_mcp = []
     plugins_dir = root / "plugins"
@@ -245,13 +254,14 @@ def main(argv=None, env=None, root: Path = ROOT, fetch=http_get_json) -> int:
             label = "plugins/" + d.name
             listed = data.get("mcpServers") if isinstance(data, dict) else None
             servers = listed if listed is not None else data
-            sync.guarded(label, lambda label=label, servers=servers: sync.sync_mcp_servers(label, servers))
+            sync.sync_mcp_servers(label, servers)
             if json.dumps(data) != before:
                 local_mcp.append((file, data))
 
     print("\n".join(sync.changes) if sync.changes else "All pins are up to date.")
     if sync.failures:
-        print("Could not check:\n" + "\n".join(sync.failures), file=sys.stderr)
+        print("Could not check %d of %d pins:\n%s"
+              % (len(sync.failures), sync.lookups, "\n".join(sync.failures)), file=sys.stderr)
 
     if not dry and sync.changes:
         write_json(market_file, market)
@@ -260,8 +270,11 @@ def main(argv=None, env=None, root: Path = ROOT, fetch=http_get_json) -> int:
     if env.get("GITHUB_OUTPUT"):
         with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8", newline="") as fh:
             fh.write("changed=%s\n" % ("true" if sync.changes else "false"))
-    # A failed lookup leaves that pin unchanged; fail the run only when nothing could be checked.
-    return 1 if sync.failures and len(sync.failures) == len(plugins) else 0
+    # A failed lookup leaves that pin unchanged; fail the run only when nothing could be
+    # checked. Count lookups, not catalog entries: a local folder or an unpinned source
+    # is an entry with nothing to look up, and counting it let a run where every lookup
+    # failed pass.
+    return 1 if sync.failures and len(sync.failures) == sync.lookups else 0
 
 
 if __name__ == "__main__":
