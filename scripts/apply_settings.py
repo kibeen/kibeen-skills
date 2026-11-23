@@ -10,7 +10,8 @@
    - extraKnownMarketplaces: entries from the repo file replace same-named entries.
    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
      Entries for kibeen-skills plugins that left the catalog are dropped.
-   - outputStyle: set when this machine has none; a style chosen on this machine stays.
+   - outputStyle: set to the repo's style, also replacing a style chosen on this machine;
+     KIBEEN_KEEP_OUTPUT_STYLE=1 keeps that choice. Project scope only fills a missing style.
    - Every other key in settings.json is left as is. A timestamped backup is written first.
 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
    (other content untouched, backup first).
@@ -99,6 +100,7 @@ CHECK = "--check" in sys.argv
 HOOK = "--hook" in sys.argv
 DRY = CHECK or "--dry-run" in sys.argv
 MARKETS_ONLY = "--marketplaces-only" in sys.argv
+KEEP_STYLE = os.environ.get("KIBEEN_KEEP_OUTPUT_STYLE") == "1"
 
 
 def log(*parts: object) -> None:
@@ -223,6 +225,21 @@ def summary() -> str:
         (count(r"^CLAUDE\.md "), "지침"),
     ]
     return ", ".join(f"{label} {n}건" for n, label in pairs if n)
+
+
+def style_notice() -> str:
+    """The replaced style and the way to keep it, for the hook message.
+
+    The hook is how this change reaches every machine, and its message is all
+    the user sees of a run, so a count alone would hide what was overwritten.
+    """
+    if not style_override:
+        return ""
+    have, want = style_override
+    return (
+        f" 출력 스타일 {have} → {want}"
+        " (이 머신의 스타일을 유지하려면 환경변수 KIBEEN_KEEP_OUTPUT_STYLE=1)."
+    )
 
 
 def fail(message: str) -> None:
@@ -365,12 +382,30 @@ if not MARKETS_ONLY:
         next_["enabledPlugins"][plugin_id] = on
         report.append(f"plugin {plugin_id}: enabled")
 
+# The repo's style is the default on every machine, also over a style set there
+# before. KIBEEN_KEEP_OUTPUT_STYLE=1 keeps a machine's own choice instead. A
+# project's settings are committed and shared, so project scope only fills a
+# missing style and never replaces one the team chose.
+style_override = None  # (old, new) when a style set on this machine is replaced
 if not MARKETS_ONLY and fragment.get("outputStyle"):
-    if "outputStyle" not in current:
-        next_["outputStyle"] = fragment["outputStyle"]
-        report.append(f"outputStyle: set to {fragment['outputStyle']}")
-    elif current.get("outputStyle") != fragment["outputStyle"]:
-        notes.append(f"outputStyle: kept {current.get('outputStyle')} chosen on this machine")
+    want = fragment["outputStyle"]
+    have = current.get("outputStyle")
+    had = "outputStyle" in current
+    if have == want:
+        pass
+    elif had and KEEP_STYLE:
+        notes.append(f"outputStyle: kept {have} chosen on this machine (KIBEEN_KEEP_OUTPUT_STYLE=1)")
+    elif had and SCOPE == "project":
+        notes.append(f"outputStyle: kept {have} set in the project settings")
+    else:
+        next_["outputStyle"] = want
+        if had:
+            style_override = (have, want)
+            report.append(
+                f"outputStyle: set to {want} (was {have}; KIBEEN_KEEP_OUTPUT_STYLE=1 keeps it)"
+            )
+        else:
+            report.append(f"outputStyle: set to {want}")
 
 diffs.extend(report)
 
@@ -441,7 +476,7 @@ if CHECK:
         if diffs:
             extra = " --scope project" if SCOPE == "project" else ""
             hook_message(
-                f"kibeen-skills 설정과 다름 [{SCOPE}] ({summary()}). "
+                f"kibeen-skills 설정과 다름 [{SCOPE}] ({summary()}).{style_notice()} "
                 f'확인: python "{SELF}"{extra} --dry-run'
             )
     else:
@@ -462,7 +497,7 @@ if not DRY and report:
 if HOOK and not DRY and diffs:
     hook_message(
         f"kibeen-skills 설정을 자동 적용했습니다 [{SCOPE}] "
-        f"({summary()}{f', 실패 {failures}건' if failures else ''}). "
+        f"({summary()}{f', 실패 {failures}건' if failures else ''}).{style_notice()} "
         f"새로 켠 플러그인은 다음 세션부터 쓸 수 있습니다. "
         f"되돌리기: {backup_path or '백업 없음'}"
     )
