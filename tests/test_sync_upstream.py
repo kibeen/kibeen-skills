@@ -210,6 +210,46 @@ class SyncUpstreamTest(unittest.TestCase):
         up = FakeUpstream({"api.github.com/repos/up/skills/commits": OSError("network down")})
         self.assertEqual(t.run(up), 1)
 
+    def test_entries_with_nothing_to_look_up_do_not_hide_a_run_where_every_lookup_failed(self):
+        """The run used to fail only when the failures matched the number of
+        catalog entries. A local folder or an unpinned source is an entry that
+        is never looked up, so with one in the catalog the run passed while
+        every lookup failed."""
+        t = self.tree([{"name": "local", "source": "./plugins/local"},
+                       {"name": "loop", "source": {"source": "github", "repo": "up/loop"}},
+                       subdir_plugin(),
+                       {"name": "pw", "source": "./plugins/pw",
+                        "mcpServers": {"pw": {"args": ["pkg@1.0.0"]}}}],
+                      {"one": {"mcpServers": {"a": {"args": ["pkg-a@1.0.0"]}}}})
+        up = FakeUpstream({})
+        self.assertEqual(t.run(up), 1)
+        self.assertEqual(len(up.calls), 3, "the commit lookup and both npm lookups")
+
+    def test_an_npm_lookup_that_worked_keeps_the_run_passing(self):
+        """npm pins count as lookups too, so one that worked is a partial failure."""
+        t = self.tree([subdir_plugin()], {"one": {"mcpServers": {"a": {"args": ["pkg-a@1.0.0"]}}}})
+        up = FakeUpstream({"registry.npmjs.org/pkg-a": {"dist-tags": {"latest": "1.1.0"}}})
+        self.assertEqual(t.run(up), 0)
+        self.assertEqual(t.read("plugins/one/.mcp.json")["mcpServers"]["a"]["args"], ["pkg-a@1.1.0"])
+
+    def test_a_failed_commit_lookup_still_lets_the_same_plugin_bump_its_npm_pin(self):
+        """Each pin is its own lookup: one failing does not skip the next one."""
+        t = self.tree([{**subdir_plugin(), "mcpServers": {"pw": {"args": ["pkg@1.0.0"]}}}])
+        up = FakeUpstream({"registry.npmjs.org/pkg": {"dist-tags": {"latest": "1.2.0"}}})
+        self.assertEqual(t.run(up), 0)
+        plugin = t.read()["plugins"][0]
+        self.assertEqual(plugin["source"]["sha"], OLD)
+        self.assertEqual(plugin["mcpServers"]["pw"]["args"], ["pkg@1.2.0"])
+
+    def test_the_daily_run_fails_when_every_lookup_of_the_real_catalog_fails(self):
+        """The real catalog holds the local kibeen-skills folder beside its git
+        sources, so this is the shape the daily workflow stayed green on."""
+        real = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        t = self.tree(real["plugins"])
+        up = FakeUpstream({})  # every route answers 404
+        self.assertEqual(t.run(up), 1)
+        self.assertTrue(up.calls, "the real catalog made no lookup to fail")
+
     def test_every_git_plugin_in_the_catalog_is_pinned_and_fetched_over_https(self):
         """pr-loop was a bare `github` entry with no sha. Nothing here moved it,
         and on a Windows PC with no SSH key it stayed three commits behind: Claude Code

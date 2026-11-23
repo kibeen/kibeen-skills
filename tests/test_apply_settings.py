@@ -583,10 +583,11 @@ class RuntimeFloorTest(unittest.TestCase):
                 "__future__", "_runtime", "copy", "datetime", "json", "os", "pathlib",
                 "re", "shutil", "subprocess", "sys",
             },
-            # urllib for the GitHub and npm lookups; it starts no process
+            # urllib for the GitHub and npm lookups, contextlib for Sync.lookup's
+            # with-block; neither starts a process
             "scripts/sync_upstream.py": {
-                "__future__", "_runtime", "datetime", "json", "math", "os", "pathlib",
-                "re", "sys", "urllib",
+                "__future__", "_runtime", "contextlib", "datetime", "json", "math", "os",
+                "pathlib", "re", "sys", "urllib",
             },
         }
         for rel in self.tracked_python():
