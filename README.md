@@ -45,7 +45,7 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 
 하한은 `scripts/_runtime.py` 의 `MIN_PYTHON` 한 곳에만 적혀 있고, 다른 곳에 더 낮은 버전이 적히면 테스트가 실패한다. CI 도 이 값을 읽어서 쓴다 — 하한과 최신 파이썬을 Linux 와 Windows 양쪽에서 돌리므로, 하한을 올리면 워크플로를 고치지 않아도 그 버전이 그대로 검증된다.
 
-훅은 하한을 만족하는 인터프리터를 스스로 찾는다 — 지금 돌고 있는 것이 낮으면 `python3.13`, `py -3` 등을 차례로 시도한다. 머신에 만족하는 것이 하나도 없으면 동기화를 건너뛰고 설치 명령을 한 줄로 알려 준다(Windows `winget`, macOS `brew`, Linux 는 패키지 관리자 감지). 조용히 실패하지 않는다. 동기화가 예외로 죽은 경우에도 traceback 을 `~/.claude/plugins/data/kibeen-skills/last-error.log` 에 남기고 사용자에게 알린다 — 세션은 그대로 진행된다.
+훅은 하한을 만족하는 인터프리터를 스스로 찾는다 — 지금 돌고 있는 것이 낮으면 `python3.13`, `py -3` 등을 차례로 시도한다. 머신에 만족하는 것이 하나도 없으면 동기화를 건너뛰고 설치 명령을 한 줄로 알려 준다(Windows `winget`, macOS `brew`, Linux 는 패키지 관리자 감지). **설치는 직접 하지 않는다** — 런타임 설치는 시스템 변경이고 대개 관리자 권한이 필요해 사용자의 결정으로 남긴다. 조용히 실패하지 않는다. 동기화가 예외로 죽은 경우에도 traceback 을 `~/.claude/plugins/data/kibeen-skills/last-error.log` 에 남기고 사용자에게 알린다 — 세션은 그대로 진행된다.
 `python` 이 없는 환경에서는 `python3` 로 바꿔 실행한다 (훅은 둘 다 시도한다).
 
 ```bash
