@@ -128,6 +128,19 @@ class ApplySettingsTest(unittest.TestCase):
         m.run()
         self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
 
+    def test_project_scope_keeps_a_committed_style(self):
+        """Project settings are shared: forcing the style there would rewrite
+        the team's committed choice on every member's sync."""
+        m = self.machine()
+        project = m.dir / "proj"
+        (project / ".claude").mkdir(parents=True)
+        target = project / ".claude" / "settings.json"
+        target.write_text(json.dumps({"outputStyle": "Explanatory"}), encoding="utf-8")
+        r = m.run("--scope", "project", "--project-dir", str(project))
+        s = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(s["outputStyle"], "Explanatory", r.stdout + r.stderr)
+        self.assertIn("outputStyle: kept Explanatory", r.stdout)
+
     def test_instruction_block_carries_the_reporting_rules(self):
         m = self.machine()
         m.run()
@@ -228,6 +241,23 @@ class HookPathTest(unittest.TestCase):
         payload = json.loads(r.stdout.decode("utf-8"))  # must not raise
         self.assertIn("kibeen-skills", payload["systemMessage"])
         self.assertNotIn(chr(0xFFFD), payload["systemMessage"])
+
+    def test_hook_message_names_the_replaced_style_and_the_opt_out(self):
+        """The hook is how the forced style reaches every machine; a count
+        alone would hide what it overwrote and how to keep it."""
+        for args, code in ((("--hook",), 0), (("--hook", "--check"), 2)):
+            m = self.machine({"outputStyle": "Explanatory"})
+            r = m.run(*args)
+            self.assertEqual(r.returncode, code, r.stderr)
+            msg = json.loads(r.stdout)["systemMessage"]
+            self.assertIn(f"Explanatory → {fragment['outputStyle']}", msg, args)
+            self.assertIn("KIBEEN_KEEP_OUTPUT_STYLE=1", msg, args)
+
+    def test_hook_message_has_no_style_notice_when_nothing_was_replaced(self):
+        m = self.machine({"theme": "dark"})
+        r = m.run("--hook")
+        msg = json.loads(r.stdout)["systemMessage"]
+        self.assertNotIn("KIBEEN_KEEP_OUTPUT_STYLE", msg)
 
     def test_unparseable_settings_stop_the_run_and_are_left_alone(self):
         """Treating a broken settings.json as {} would drop every key the

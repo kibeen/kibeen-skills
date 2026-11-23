@@ -68,6 +68,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 
 **프로젝트 범위**: 한 프로젝트에만 적용하려면 그 프로젝트 폴더에서 `claude plugin install kibeen-skills@kibeen-skills --scope project`.
 동기화 훅이 이를 알아보고 `<프로젝트>/.claude/settings.json` 과 `<프로젝트>/.claude/CLAUDE.md` 만 바꾼다(사용자 설정은 그대로).
+프로젝트 설정은 커밋해 함께 쓰므로, 출력 스타일은 값이 없을 때만 채우고 이미 정한 값은 바꾸지 않는다.
 프로젝트 설정의 플러그인은 시작할 때 자동으로 받아지지 않으므로, 스크립트가 `--scope project` 로 직접 추가·설치한다.
 수동 실행: `python scripts/apply_settings.py --scope project --project-dir <프로젝트>`.
 

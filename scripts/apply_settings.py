@@ -227,6 +227,21 @@ def summary() -> str:
     return ", ".join(f"{label} {n}건" for n, label in pairs if n)
 
 
+def style_notice() -> str:
+    """The replaced style and the way to keep it, for the hook message.
+
+    The hook is how this change reaches every machine, and its message is all
+    the user sees of a run, so a count alone would hide what was overwritten.
+    """
+    if not style_override:
+        return ""
+    have, want = style_override
+    return (
+        f" 출력 스타일 {have} → {want}"
+        " (이 머신의 스타일을 유지하려면 환경변수 KIBEEN_KEEP_OUTPUT_STYLE=1)."
+    )
+
+
 def fail(message: str) -> None:
     """Stop with a reason the user actually sees.
 
@@ -368,20 +383,28 @@ if not MARKETS_ONLY:
         report.append(f"plugin {plugin_id}: enabled")
 
 # The repo's style is the default on every machine, also over a style set there
-# before. KIBEEN_KEEP_OUTPUT_STYLE=1 keeps a machine's own choice instead.
+# before. KIBEEN_KEEP_OUTPUT_STYLE=1 keeps a machine's own choice instead. A
+# project's settings are committed and shared, so project scope only fills a
+# missing style and never replaces one the team chose.
+style_override = None  # (old, new) when a style set on this machine is replaced
 if not MARKETS_ONLY and fragment.get("outputStyle"):
     want = fragment["outputStyle"]
     have = current.get("outputStyle")
+    had = "outputStyle" in current
     if have == want:
         pass
-    elif "outputStyle" in current and KEEP_STYLE:
-        notes.append(
-            f"outputStyle: kept {have} chosen on this machine (KIBEEN_KEEP_OUTPUT_STYLE=1)"
-        )
+    elif had and (KEEP_STYLE or SCOPE == "project"):
+        why = "KIBEEN_KEEP_OUTPUT_STYLE=1" if KEEP_STYLE else "project settings keep their own"
+        notes.append(f"outputStyle: kept {have} chosen on this machine ({why})")
     else:
         next_["outputStyle"] = want
-        was = f" (was {have}; KIBEEN_KEEP_OUTPUT_STYLE=1 keeps it)" if "outputStyle" in current else ""
-        report.append(f"outputStyle: set to {want}{was}")
+        if had:
+            style_override = (have, want)
+            report.append(
+                f"outputStyle: set to {want} (was {have}; KIBEEN_KEEP_OUTPUT_STYLE=1 keeps it)"
+            )
+        else:
+            report.append(f"outputStyle: set to {want}")
 
 diffs.extend(report)
 
@@ -452,7 +475,7 @@ if CHECK:
         if diffs:
             extra = " --scope project" if SCOPE == "project" else ""
             hook_message(
-                f"kibeen-skills 설정과 다름 [{SCOPE}] ({summary()}). "
+                f"kibeen-skills 설정과 다름 [{SCOPE}] ({summary()}).{style_notice()} "
                 f'확인: python "{SELF}"{extra} --dry-run'
             )
     else:
@@ -473,7 +496,7 @@ if not DRY and report:
 if HOOK and not DRY and diffs:
     hook_message(
         f"kibeen-skills 설정을 자동 적용했습니다 [{SCOPE}] "
-        f"({summary()}{f', 실패 {failures}건' if failures else ''}). "
+        f"({summary()}{f', 실패 {failures}건' if failures else ''}).{style_notice()} "
         f"새로 켠 플러그인은 다음 세션부터 쓸 수 있습니다. "
         f"되돌리기: {backup_path or '백업 없음'}"
     )
