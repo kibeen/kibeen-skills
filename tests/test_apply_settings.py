@@ -100,14 +100,38 @@ class ApplySettingsTest(unittest.TestCase):
             m.run("--check").returncode, 0, "a second run finds nothing to change"
         )
 
-    def test_output_style_chosen_on_the_machine_is_kept(self):
+    def test_repo_output_style_replaces_one_chosen_on_the_machine(self):
         m = self.machine({"outputStyle": "Explanatory"})
+        r = m.run()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
+        self.assertIn(
+            f"outputStyle: set to {fragment['outputStyle']} (was Explanatory", r.stdout
+        )
+        self.assertEqual(
+            m.run("--check").returncode, 0, "a second run finds nothing to change"
+        )
+
+    def test_keep_output_style_env_keeps_the_machine_choice(self):
+        m = self.machine({"outputStyle": "Explanatory"})
+        m.env["KIBEEN_KEEP_OUTPUT_STYLE"] = "1"
         r = m.run()
         self.assertEqual(m.read()["outputStyle"], "Explanatory")
         self.assertIn("outputStyle: kept Explanatory", r.stdout)
         self.assertEqual(
             m.run("--check").returncode, 0, "a kept style is not reported as a difference"
         )
+
+    def test_keep_output_style_env_still_fills_a_missing_style(self):
+        m = self.machine({"theme": "dark"})
+        m.env["KIBEEN_KEEP_OUTPUT_STYLE"] = "1"
+        m.run()
+        self.assertEqual(m.read()["outputStyle"], fragment["outputStyle"])
+
+    def test_instruction_block_carries_the_reporting_rules(self):
+        m = self.machine()
+        m.run()
+        self.assertIn("## 보고", m.memo())
 
     def test_marketplaces_only_leaves_plugins_and_style_alone(self):
         m = self.machine({"theme": "dark"})

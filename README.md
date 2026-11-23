@@ -32,10 +32,11 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 
 ## 지침과 출력 스타일 (모든 머신에 자동 적용)
 답변을 짧게 쓰게 하는 일은 Claude Code 내장 출력 스타일 `Concise` 가 맡는다. `settings/claude-settings.json` 의
-`outputStyle` 을 `apply_settings.py` 가 각 머신의 `settings.json` 에 넣는다. 그 머신에서 다른 스타일을 골라 두었으면 바꾸지 않는다.
+`outputStyle` 을 `apply_settings.py` 가 각 머신의 `settings.json` 에 넣는다. 그 머신에서 다른 스타일을 골라 두었어도 `Concise` 로 맞춘다
+(데스크톱 앱 Code 탭의 출력 스타일 설정도 이 값이다). 그 머신의 선택을 유지하려면 환경변수 `KIBEEN_KEEP_OUTPUT_STYLE=1`.
 `Concise` 는 Claude Code 2.1.237 이상에서 동작하고, 그보다 낮은 버전은 기본 스타일로 돈다.
 
-`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙, 진행·결과 보고에서 지엽적인 정보를 빼는 보고 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
 `kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
 
@@ -62,7 +63,7 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
    플러그인을 제거한다. 이 마켓플레이스에서 빠진 `@kibeen-skills` 플러그인도 제거한다.
 2. **병합**: `extraKnownMarketplaces` 를 `autoUpdate: true` 로 선언하고, `enabledPlugins` 의 플러그인을 켠다.
    설치되지 않은 플러그인은 다음 Claude Code 시작 때 자동으로 받는다. 그 머신에서 `false` 로 꺼 둔 플러그인은 다시 켜지 않는다.
-   이 마켓플레이스에서 빠진 플러그인의 `enabledPlugins` 항목은 지우고, `outputStyle` 은 그 머신에 값이 없을 때만 넣는다.
+   이 마켓플레이스에서 빠진 플러그인의 `enabledPlugins` 항목은 지우고, `outputStyle` 은 저장소 값으로 맞춘다(`KIBEEN_KEEP_OUTPUT_STYLE=1` 이면 그 머신의 값을 둔다).
    플러그인과 출력 스타일은 두고 정리와 마켓플레이스 선언만 하려면 `--marketplaces-only`.
 
 **프로젝트 범위**: 한 프로젝트에만 적용하려면 그 프로젝트 폴더에서 `claude plugin install kibeen-skills@kibeen-skills --scope project`.

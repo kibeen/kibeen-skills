@@ -10,7 +10,8 @@
    - extraKnownMarketplaces: entries from the repo file replace same-named entries.
    - enabledPlugins: adds the repo's plugins; a plugin this machine set to false stays false.
      Entries for kibeen-skills plugins that left the catalog are dropped.
-   - outputStyle: set when this machine has none; a style chosen on this machine stays.
+   - outputStyle: set to the repo's style, also replacing a style chosen on this machine;
+     KIBEEN_KEEP_OUTPUT_STYLE=1 keeps that choice.
    - Every other key in settings.json is left as is. A timestamped backup is written first.
 3. CLAUDE.md: keeps settings/CLAUDE.kibeen.md as a marked block in the user's CLAUDE.md
    (other content untouched, backup first).
@@ -99,6 +100,7 @@ CHECK = "--check" in sys.argv
 HOOK = "--hook" in sys.argv
 DRY = CHECK or "--dry-run" in sys.argv
 MARKETS_ONLY = "--marketplaces-only" in sys.argv
+KEEP_STYLE = os.environ.get("KIBEEN_KEEP_OUTPUT_STYLE") == "1"
 
 
 def log(*parts: object) -> None:
@@ -365,12 +367,21 @@ if not MARKETS_ONLY:
         next_["enabledPlugins"][plugin_id] = on
         report.append(f"plugin {plugin_id}: enabled")
 
+# The repo's style is the default on every machine, also over a style set there
+# before. KIBEEN_KEEP_OUTPUT_STYLE=1 keeps a machine's own choice instead.
 if not MARKETS_ONLY and fragment.get("outputStyle"):
-    if "outputStyle" not in current:
-        next_["outputStyle"] = fragment["outputStyle"]
-        report.append(f"outputStyle: set to {fragment['outputStyle']}")
-    elif current.get("outputStyle") != fragment["outputStyle"]:
-        notes.append(f"outputStyle: kept {current.get('outputStyle')} chosen on this machine")
+    want = fragment["outputStyle"]
+    have = current.get("outputStyle")
+    if have == want:
+        pass
+    elif "outputStyle" in current and KEEP_STYLE:
+        notes.append(
+            f"outputStyle: kept {have} chosen on this machine (KIBEEN_KEEP_OUTPUT_STYLE=1)"
+        )
+    else:
+        next_["outputStyle"] = want
+        was = f" (was {have}; KIBEEN_KEEP_OUTPUT_STYLE=1 keeps it)" if "outputStyle" in current else ""
+        report.append(f"outputStyle: set to {want}{was}")
 
 diffs.extend(report)
 
