@@ -17,7 +17,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/kibeen/pr-loop.git",
-        "sha": "6e41639b01ada3ef67e0e88a148d14afcfa83b28"
+        "sha": "b70cae9b56716aedbd2fad44fe1ce92014884d6b"
       },
       "description": "구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차 (pr-review-loop, pr-merge-loop, pr-reviewer). 원본: kibeen/pr-loop",
       "homepage": "https://github.com/kibeen/pr-loop"
