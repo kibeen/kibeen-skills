@@ -36,7 +36,7 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 (데스크톱 앱 Code 탭의 출력 스타일 설정도 이 값이다). 그 머신의 선택을 유지하려면 환경변수 `KIBEEN_KEEP_OUTPUT_STYLE=1`.
 `Concise` 는 Claude Code 2.1.237 이상에서 동작하고, 그보다 낮은 버전은 기본 스타일로 돈다.
 
-`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙, 진행·결과 보고에서 지엽적인 정보를 빼는 보고 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙, 진행과 결과 보고에서 지엽적인 정보는 빼고 이해에 필요한 맥락은 주는 보고 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
 `kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
 
