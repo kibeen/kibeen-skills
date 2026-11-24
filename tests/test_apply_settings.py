@@ -186,6 +186,7 @@ class ApplySettingsTest(unittest.TestCase):
         m = self.machine()
         m.run()
         self.assertIn("## 보고", m.memo())
+        self.assertIn("간결함과 맥락은 서로 독립이다", m.memo())
 
     def test_marketplaces_only_leaves_plugins_and_style_alone(self):
         m = self.machine({"theme": "dark"})
