@@ -52,7 +52,7 @@ class CountClarificationsTest(unittest.TestCase):
 
     def test_counts_only_what_the_user_typed(self):
         self.write("p", "s1", [
-            user("u1", "B1은 뭐야?"),
+            user("u1", "A안은 뭐야?"),
             user("u2", "뭔말인지 모르겠어"),
             user("u3", [{"type": "text", "text": "이해가 안돼"}]),
             user("u4", "권장대로 해줘"),
@@ -75,7 +75,7 @@ class CountClarificationsTest(unittest.TestCase):
         note's length counted against --max-chars."""
         ide = "<ide_opened_file>The user opened " + "x" * 600 + "</ide_opened_file>"
         self.write("p", "s1", [
-            user("u1", [{"type": "text", "text": ide}, {"type": "text", "text": "B1은 뭐야?"}]),
+            user("u1", [{"type": "text", "text": ide}, {"type": "text", "text": "A안은 뭐야?"}]),
             user("u2", [{"type": "text", "text": ide}]),
         ])
         day = self.run_json()["days"][TODAY.isoformat()]
@@ -99,8 +99,8 @@ class CountClarificationsTest(unittest.TestCase):
         self.assertEqual(out["until"], before.isoformat())
 
     def test_a_message_copied_into_a_resumed_session_counts_once(self):
-        self.write("p", "s1", [user("u1", "site가 뭐야?")])
-        self.write("p", "s2", [user("u1", "site가 뭐야?"), user("u2", "좋아")])
+        self.write("p", "s1", [user("u1", "그 옵션이 뭐야?")])
+        self.write("p", "s2", [user("u1", "그 옵션이 뭐야?"), user("u2", "좋아")])
         day = self.run_json()["days"][TODAY.isoformat()]
         self.assertEqual(day, {"messages": 2, "confused": 0, "asks": 1})
 
@@ -117,10 +117,10 @@ class CountClarificationsTest(unittest.TestCase):
         self.assertEqual(day["asks"], 0)
 
     def test_show_lists_the_matches(self):
-        self.write("p", "s1", [user("u1", "transport replay가 뭐야?")])
+        self.write("p", "s1", [user("u1", "이 약어가 뭐야?")])
         matches = self.run_json("--show")["matches"]
         self.assertEqual(matches, [{"day": TODAY.isoformat(), "kind": "asks",
-                                    "text": "transport replay가 뭐야?"}])
+                                    "text": "이 약어가 뭐야?"}])
 
     def test_the_table_reports_a_rate(self):
         self.write("p", "s1", [user("u1", "뭐야"), user("u2", "좋아")])
