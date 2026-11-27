@@ -69,6 +69,35 @@ class CountClarificationsTest(unittest.TestCase):
         day = self.run_json()["days"][TODAY.isoformat()]
         self.assertEqual(day, {"messages": 4, "confused": 2, "asks": 1})
 
+    def test_text_typed_next_to_a_client_block_still_counts(self):
+        """The IDE adds an open-file note as its own text block before what the user
+        typed. Dropping the whole message for it lost the typed question, and the
+        note's length counted against --max-chars."""
+        ide = "<ide_opened_file>The user opened " + "x" * 600 + "</ide_opened_file>"
+        self.write("p", "s1", [
+            user("u1", [{"type": "text", "text": ide}, {"type": "text", "text": "B1은 뭐야?"}]),
+            user("u2", [{"type": "text", "text": ide}]),
+        ])
+        day = self.run_json()["days"][TODAY.isoformat()]
+        self.assertEqual(day, {"messages": 1, "confused": 0, "asks": 1})
+
+    def test_summaries_notices_and_automation_are_not_typed(self):
+        self.write("p", "s1", [
+            user("u1", "요약: 사용자가 뭐야 라고 물음", isCompactSummary=True),
+            user("u2", "이해가 안 되는 부분", isVisibleInTranscriptOnly=True),
+            user("u3", "이게 뭐야", entrypoint="sdk-cli"),
+            user("u4", "이게 뭐야", entrypoint="claude-vscode"),
+        ])
+        day = self.run_json()["days"][TODAY.isoformat()]
+        self.assertEqual(day, {"messages": 1, "confused": 0, "asks": 1})
+
+    def test_until_ends_the_window(self):
+        before = TODAY - datetime.timedelta(days=3)
+        self.write("p", "s1", [user("u1", "뭐야", day=before), user("u2", "뭐야")])
+        out = self.run_json("--days", "2", "--until", before.isoformat())
+        self.assertEqual(list(out["days"]), [before.isoformat()])
+        self.assertEqual(out["until"], before.isoformat())
+
     def test_a_message_copied_into_a_resumed_session_counts_once(self):
         self.write("p", "s1", [user("u1", "site가 뭐야?")])
         self.write("p", "s2", [user("u1", "site가 뭐야?"), user("u2", "좋아")])

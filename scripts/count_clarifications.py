@@ -12,12 +12,16 @@ Two kinds are counted, each message at most once:
   asks      the message asks what a term is ("X가 뭐야", "무슨 뜻"). Noisier:
             "다음 작업은 뭐야?" matches too.
 
-Only text the user typed is read. Tool results, command and hook output (text that
-starts with "<"), subagent turns, meta messages and messages longer than --max-chars
-(usually pasted documents) are skipped. A message copied into a resumed session's
-transcript is counted once.
+Only text the user typed is read. Tool results, text blocks the client or harness
+added (they start with "<": the IDE's open-file note, command and hook output),
+subagent turns, meta messages, /compact summaries, prompts from automation and
+messages longer than --max-chars (usually pasted documents) are skipped. A message
+copied into a resumed session's transcript is counted once.
 
-Run: python scripts/count_clarifications.py [--days 30] [--show] [--json]
+Claude Code deletes transcripts older than `cleanupPeriodDays` (30 by default), so
+save the --json output of the window before a change; it cannot be recounted later.
+
+Run: python scripts/count_clarifications.py [--days 30] [--until YYYY-MM-DD] [--show] [--json]
 """
 from __future__ import annotations
 
@@ -44,21 +48,35 @@ def projects_dir() -> Path:
     return Path(base) / "projects"
 
 
+# Records that are in the transcript but were not typed by the user: subagent turns,
+# injected caveats, /compact summaries, and transcript-only notices.
+NOT_TYPED = ("isSidechain", "isMeta", "isCompactSummary", "isVisibleInTranscriptOnly")
+# Prompts handed over by automation (`claude -p`, SDK scripts), not by a person.
+AUTOMATED_ENTRYPOINTS = ("sdk-cli",)
+
+
 def typed_text(record: dict) -> str | None:
-    """The text the user typed in this transcript record, or None if it is not one."""
-    if record.get("type") != "user" or record.get("isSidechain") or record.get("isMeta"):
+    """The text the user typed in this transcript record, or None if it is not one.
+
+    A message can hold several text blocks. Blocks that start with "<" are added by
+    the client or the harness (the IDE's open-file note, command output, hook text)
+    and are dropped one by one, so what the user typed next to them still counts.
+    """
+    if record.get("type") != "user" or any(record.get(k) for k in NOT_TYPED):
+        return None
+    if record.get("entrypoint") in AUTOMATED_ENTRYPOINTS:
         return None
     content = (record.get("message") or {}).get("content")
-    if isinstance(content, list):
-        parts = [c.get("text", "") for c in content
-                 if isinstance(c, dict) and c.get("type") == "text"]
-        content = "\n".join(parts)
-    if not isinstance(content, str):
+    if isinstance(content, str):
+        blocks = [content]
+    elif isinstance(content, list):
+        blocks = [c.get("text", "") for c in content
+                  if isinstance(c, dict) and c.get("type") == "text"]
+    else:
         return None
-    text = content.strip()
-    if not text or text.startswith("<"):
-        return None
-    return text
+    kept = [b.strip() for b in blocks if isinstance(b, str)]
+    kept = [b for b in kept if b and not b.startswith("<")]
+    return "\n".join(kept) or None
 
 
 def classify(text: str) -> str | None:
@@ -79,8 +97,9 @@ def local_day(stamp: str) -> datetime.date | None:
     return moment.astimezone().date()
 
 
-def scan(root: Path, since: datetime.date, max_chars: int) -> tuple[dict, list]:
-    """Per-day counts and the matching messages, for days on or after `since`."""
+def scan(root: Path, since: datetime.date, until: datetime.date,
+         max_chars: int) -> tuple[dict, list]:
+    """Per-day counts and the matching messages, for days from `since` to `until`."""
     days: dict = {}
     matches: list = []
     seen: set = set()
@@ -100,7 +119,7 @@ def scan(root: Path, since: datetime.date, max_chars: int) -> tuple[dict, list]:
                 continue
             text = typed_text(record)
             day = local_day(record.get("timestamp"))
-            if text is None or day is None or day < since or len(text) > max_chars:
+            if text is None or day is None or not since <= day <= until or len(text) > max_chars:
                 continue
             key = record.get("uuid") or (record.get("timestamp"), text)
             if key in seen:
@@ -134,7 +153,10 @@ def _row(label: str, row: dict) -> str:
 
 def main(argv: list | None = None, today: datetime.date | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    ap.add_argument("--days", type=int, default=30, help="look back this many days (default 30)")
+    ap.add_argument("--days", type=int, default=30,
+                    help="this many days, ending on --until (default 30)")
+    ap.add_argument("--until", type=datetime.date.fromisoformat, default=None,
+                    help="last day counted, YYYY-MM-DD (default today); for before/after windows")
     ap.add_argument("--projects", type=Path, default=None, help="transcript directory")
     ap.add_argument("--max-chars", type=int, default=500, help="skip longer messages (default 500)")
     ap.add_argument("--show", action="store_true", help="also print the matching messages")
@@ -142,12 +164,13 @@ def main(argv: list | None = None, today: datetime.date | None = None) -> int:
     args = ap.parse_args(argv)
     if args.days < 1:
         ap.error("--days must be 1 or more")
-    since = (today or datetime.date.today()) - datetime.timedelta(days=args.days - 1)
-    days, matches = scan(args.projects or projects_dir(), since, args.max_chars)
+    until = args.until or today or datetime.date.today()
+    since = until - datetime.timedelta(days=args.days - 1)
+    days, matches = scan(args.projects or projects_dir(), since, until, args.max_chars)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     if args.json:
-        payload = {"since": since.isoformat(), "days": days}
+        payload = {"since": since.isoformat(), "until": until.isoformat(), "days": days}
         if args.show:
             payload["matches"] = matches
         print(json.dumps(payload, ensure_ascii=False, indent=2))
