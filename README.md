@@ -36,9 +36,23 @@ claude plugin uninstall kibeen-skills@kibeen-skills --prune   # 지울 때: 함�
 (데스크톱 앱 Code 탭의 출력 스타일 설정도 이 값이다). 그 머신의 선택을 유지하려면 환경변수 `KIBEEN_KEEP_OUTPUT_STYLE=1`.
 `Concise` 는 Claude Code 2.1.237 이상에서 동작하고, 그보다 낮은 버전은 기본 스타일로 돈다.
 
-`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙, 진행과 결과 보고에서 지엽적인 정보는 빼고 이해에 필요한 맥락은 주는 보고 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
+`settings/CLAUDE.kibeen.md` 의 지침(스킬 선택 규칙, 진행과 결과 보고에서 지엽적인 정보는 빼고 이해에 필요한 맥락은 주는 보고 규칙, 스스로 지은 이름과 읽는 사람이 모르는 용어를 풀어 쓰는 용어 규칙)을 `apply_settings.py` 가 각 머신의 `~/.claude/CLAUDE.md` 에 관리 블록
 (`<!-- BEGIN kibeen-skills ... -->` ~ `<!-- END kibeen-skills -->`)으로 넣는다. 블록 밖 내용은 건드리지 않고, 바꾸기 전에 백업한다.
 `kibeen-skills` 플러그인 훅이 자동 동기화하므로 이 파일을 고쳐 push 하면 모든 머신에 반영된다. 파일을 지우면 블록도 지워진다.
+
+### 보고 규칙의 효과 측정
+보고와 용어 규칙이 효과가 있는지는 사용자가 답을 되물은 횟수로 잰다. `scripts/count_clarifications.py` 가 그 머신의 대화 기록
+(`~/.claude/projects/*/*.jsonl`)에서 사용자가 직접 친 메시지 가운데 "이해가 안", "뭔말인지" 처럼 답을 못 알아들었다는 말(`confused`)과
+"X가 뭐야", "무슨 뜻" 처럼 용어를 묻는 말(`asks`)을 날짜별로 세고, 그날 메시지 수에 대한 비율을 낸다.
+도구 결과, 클라이언트와 하네스가 붙인 블록(`<` 로 시작하는 IDE 의 열린 파일 알림, 명령과 훅 출력), 서브에이전트 대화, `/compact` 요약, 자동화가 보낸 프롬프트,
+500자보다 긴 메시지(대개 붙여 넣은 문서)는 세지 않는다. `asks` 는 "다음 작업은 뭐야?" 같은 질문도 잡으므로
+한 번의 값보다 규칙을 바꾸기 전과 바꾼 뒤의 추세를 본다. 사람이 쓰는 머신마다 돌려 합친다(`--json`).
+Claude Code 는 `cleanupPeriodDays`(기본 30일)가 지난 대화 기록을 지우므로, 규칙을 바꾸기 전 기간의 `--json` 결과는 그때 저장해 둔다. 나중에는 다시 셀 수 없다.
+```bash
+python scripts/count_clarifications.py --days 30                            # 오늘까지 30일, 날짜별 표
+python scripts/count_clarifications.py --days 7 --until 2026-12-04 --show   # 그날까지 7일, 잡힌 메시지까지
+python scripts/count_clarifications.py --days 30 --json > before.json       # 바꾸기 전 기준값 저장
+```
 
 ## 새 머신 설정 (1회)
 
