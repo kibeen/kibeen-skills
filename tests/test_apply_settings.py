@@ -580,6 +580,10 @@ class RuntimeFloorTest(unittest.TestCase):
                 "subprocess", "sys", "time", "traceback",
             },
             "scripts/_runtime.py": {"os", "subprocess", "sys"},
+            # reads transcripts and prints counts; argparse for its flags
+            "scripts/count_clarifications.py": {
+                "__future__", "argparse", "datetime", "json", "os", "pathlib", "re", "sys",
+            },
             "scripts/apply_settings.py": {
                 "__future__", "_runtime", "copy", "datetime", "json", "os", "pathlib",
                 "re", "shutil", "subprocess", "sys",
