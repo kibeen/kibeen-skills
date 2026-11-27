@@ -116,9 +116,9 @@ Windows 에서 홈 경로가 길면 먼저 `git config --global core.longpaths t
 | 플러그인 | 내용 | 원본 |
 |---|---|---|
 | `kibeen-skills` | 내용 없는 묶음. `dependencies` 로 기본 도구를 함께 설치하고, SessionStart 훅이 이 머신을 `settings/` 에 맞춘다(설치, 제거, 지침, 출력 스타일) | 이 레포 `plugins/kibeen-skills` |
-| `pr-loop` | 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차. 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr_merge_watch.py` | [kibeen/pr-loop](https://github.com/kibeen/pr-loop) |
+| `seekflow` | 설계부터 머지까지 결정마다 근거를 요구하는 절차(예전 이름 `pr-loop`). 설계 전 선행 조사 스킬 `prior-art-research`(대표 시스템의 설계와 관련 논문을 조사해 비교 평가), 그 스킬을 superpowers `brainstorming` 이 로드될 때 쓰게 하는 훅, 구현 PR 스킬 `pr-review-loop`, `pr-merge-loop`, 서브에이전트 `pr-reviewer`, 감시 스크립트 `pr_merge_watch.py` | [kibeen/seekflow](https://github.com/kibeen/seekflow) |
 
-`pr-loop` 도 다른 항목처럼 HTTPS `url` 소스와 `sha` 로 고정한다. 그 레포에 푸시한 커밋은 다음 `sync-upstream` 실행(위 "업데이트가 따라가는 방식")이
+`seekflow` 도 다른 항목처럼 HTTPS `url` 소스와 `sha` 로 고정한다. 그 레포에 푸시한 커밋은 다음 `sync-upstream` 실행(위 "업데이트가 따라가는 방식")이
 `sha` 를 올린 뒤 자동 업데이트로 각 머신에 들어간다. 바로 받으려면 그 워크플로를 수동으로 돌린다.
 전에는 `sha` 없는 `github` 소스였는데, upstream 이 커밋 3개를 더 받는 동안 자동 업데이트가 옛 커밋에 머문 머신이 있었고, Claude Code 가 `github` 플러그인 소스를
 SSH 로 받다 실패하면 HTTPS 로 넘어가지 않아 `claude plugin update` 도 GitHub SSH 키가 없는 머신에서 실패했다.

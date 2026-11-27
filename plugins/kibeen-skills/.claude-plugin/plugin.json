@@ -5,7 +5,7 @@
     "name": "Jung Kibeen"
   },
   "dependencies": [
-    "pr-loop@kibeen-skills",
+    "seekflow@kibeen-skills",
     "playwright@claude-plugins-official",
     "superpowers@claude-plugins-official",
     "taste-skill@taste-skill",

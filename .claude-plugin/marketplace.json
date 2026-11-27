@@ -13,14 +13,14 @@
       "description": "kibeen 기본 도구 묶음 (의존성으로 함께 설치, 설정 동기화 훅)"
     },
     {
-      "name": "pr-loop",
+      "name": "seekflow",
       "source": {
         "source": "url",
-        "url": "https://github.com/kibeen/pr-loop.git",
+        "url": "https://github.com/kibeen/seekflow.git",
         "sha": "b70cae9b56716aedbd2fad44fe1ce92014884d6b"
       },
-      "description": "구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차 (pr-review-loop, pr-merge-loop, pr-reviewer). 원본: kibeen/pr-loop",
-      "homepage": "https://github.com/kibeen/pr-loop"
+      "description": "설계 전 선행 조사(대표 시스템의 설계와 관련 논문, 비교 평가)와 구현 PR 을 draft 리뷰부터 머지까지 끌고 가는 절차 (prior-art-research, pr-review-loop, pr-merge-loop, pr-reviewer). 원본: kibeen/seekflow, 예전 이름 pr-loop",
+      "homepage": "https://github.com/kibeen/seekflow"
     },
     {
       "name": "doc-coauthoring",

@@ -30,7 +30,7 @@
     }
   },
   "enabledPlugins": {
-    "pr-loop@kibeen-skills": true,
+    "seekflow@kibeen-skills": true,
     "playwright@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "taste-skill@taste-skill": true,
@@ -64,6 +64,7 @@
     ]
   },
   "renamed": {
-    "kibeen-core@kibeen-skills": "kibeen-skills@kibeen-skills"
+    "kibeen-core@kibeen-skills": "kibeen-skills@kibeen-skills",
+    "pr-loop@kibeen-skills": "seekflow@kibeen-skills"
   }
 }
